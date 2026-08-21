@@ -1,0 +1,183 @@
+---
+title: Migrate a list
+description: Move an audience off Resend, Mailchimp, Kit or anything else. Suppressions first, then contacts, then a careful first send.
+---
+
+import { Callout } from "nextra/components";
+
+# Migrate a list
+
+Moving a list is mostly about not damaging your sending reputation on the way.
+The order matters more than the code does.
+
+## The order
+
+1. **Export from your old provider.** Contacts *and* the suppression list, which
+   is usually a separate download.
+2. **Import suppressions first.** [Suppressions](/suppressions)
+3. **Import contacts in batches.** [Contacts](/contacts)
+4. **Verify your sending domain.** In the app, under **Domains**.
+5. **Send to your most engaged segment first**, not the whole list.
+
+<Callout type="warning">
+Suppressions before contacts, always. If you import contacts first and send
+before the suppression list lands, your first campaign re-mails every address
+that already hard-bounced or complained elsewhere. Mailbox providers read that
+as exactly what it looks like, and you will spend weeks recovering.
+</Callout>
+
+Importing suppressions first means contacts for those addresses fail on the way
+in, with `email_suppressed`. That is the system working, not an error to retry.
+
+## Step 1: suppressions
+
+```bash
+curl -X POST https://go.day3.app/api/v1/suppressions \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: suppressions-chunk-1" \
+  -d '{ "reason": "bounced", "emails": ["a@x.com", "b@y.com"] }'
+```
+
+Up to 1,000 addresses per call, and `reason` is required with no default. Post
+each reason separately: your provider's bounce list is `bounced`, its complaint
+list is `complained`, its global unsubscribes are `unsubscribed`.
+
+Check `total_suppressed_after` in the response against what you expected. Posting
+the wrong file here makes your whole audience unmailable, and there is no bulk
+undo.
+
+## Step 2: contacts
+
+Use the batch endpoint. Up to 1,000 per call, and the whole call costs one
+request against the rate limit, so 50,000 contacts is 50 requests.
+
+```js
+const CHUNK = 1000;
+
+for (let i = 0; i < rows.length; i += CHUNK) {
+  const chunk = rows.slice(i, i + CHUNK);
+
+  const res = await fetch(
+    "https://go.day3.app/api/v1/audiences/aud_123/contacts/batch",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + process.env.DAY3_API_KEY,
+        "Content-Type": "application/json",
+        // Deterministic, so a retry replays instead of double-writing.
+        "Idempotency-Key": "import-v1-chunk-" + i,
+      },
+      body: JSON.stringify({
+        upsert: true,
+        contacts: chunk.map((r) => ({
+          email: r.email,
+          first_name: r.first_name || undefined,
+          last_name: r.last_name || undefined,
+          // Opt-out state carries across. This is the whole point.
+          status: r.unsubscribed ? "unsubscribed" : "subscribed",
+          unsubscribed_at: r.unsubscribed_at || undefined,
+          // Every value must be a string.
+          attributes: Object.fromEntries(
+            Object.entries(r.custom).map(([k, v]) => [k, String(v)]),
+          ),
+        })),
+      }),
+    },
+  );
+
+  const result = await res.json();
+  console.log(result.summary); // { created, updated, failed }
+
+  for (const row of result.results) {
+    if (row.status === "failed") console.warn(i + row.index, row.error.code);
+  }
+}
+```
+
+### The five things that go wrong
+
+<Callout type="error">
+**Non-string attribute values reject the entire batch**, not the offending row. A
+single `{"orders": 5}` returns `400 invalid_request` for all 1,000 contacts.
+`String()` every value.
+</Callout>
+
+1. **Duplicate emails inside one payload reject the whole request.** Emails are
+   canonicalized first, so `Ada@Acme.com` and `ada@acme.com` are duplicates.
+   De-duplicate case-insensitively before sending a chunk.
+2. **You cannot backdate a contact.** `created_at` in the payload is silently
+   dropped. Original signup dates cannot be preserved. `unsubscribed_at` is the
+   one exception and is honoured, so opt-out dates do survive.
+3. **`email`, `first_name` and `last_name` are reserved in `attributes`.** They
+   are real columns, so putting them in `attributes` is silently ignored. Send
+   them as top-level fields.
+4. **Attribute keys are normalized to `snake_case`.** `"Company / Org"` becomes
+   `company_org`, so two source columns can collide into one key. Check your
+   mapping before running 50 chunks.
+5. **Unknown top-level fields are dropped, not rejected.** Map every source
+   column deliberately, and tell whoever asked for the migration what could not
+   be carried across rather than assuming it was.
+
+### Custom fields
+
+You do not need to declare anything. Unknown attribute keys
+[register themselves](/fields) as fields, and become `{{merge_tags}}` in
+campaigns. Create fields explicitly only when you want to set a label, type or
+fallback up front.
+
+### Topics
+
+If your old provider had groups or interests, carry them across with a `topics`
+map on each batch item, using topic ids you created first. See
+[Topics](/topics).
+
+## Step 3: check the plan limit before you start
+
+Free plans cap the list at 500 subscribers. A batch that would cross the cap is
+rejected **whole**, with the remaining headroom in the message, so nothing is
+partially applied.
+
+Count your source rows first. If they exceed the cap, upgrade before importing
+rather than discovering it on chunk 1. Do not split batches to sneak under a cap.
+
+## Step 4: the first send
+
+Domain reputation is built, not transferred. A brand-new sending domain that
+immediately mails 50,000 people looks exactly like a spammer, whatever the list's
+history elsewhere.
+
+- **Same domain if you can.** If you sent from `updates.acme.com` before, keep
+  using it. Reputation follows the domain, so this is the single biggest lever.
+- **Send to your most engaged segment first.** People who opened something in the
+  last 90 days. Build a [segment](/segments) for it.
+- **Then widen** over a few sends, watching bounces and complaints.
+
+Set up [webhooks](/webhooks) before the first send, so you learn about bounces
+from your own database rather than from a dashboard.
+
+## Verifying the result
+
+```bash
+# Contact counts by status.
+curl https://go.day3.app/api/v1/audiences/aud_123 \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+
+# Spot-check one contact, by plain email, no id lookup needed.
+curl "https://go.day3.app/api/v1/audiences/aud_123/contacts/jane%40acme.com?expand=topics" \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+
+# Confirm the suppression list landed.
+curl "https://go.day3.app/api/v1/suppressions?limit=1" \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+`contact_counts` on the audience should match your source, minus the rows that
+failed on suppressed addresses. If it does not, the `results` array from each
+batch tells you exactly which index failed and why.
+
+## Further reading
+
+There is a longer, non-API version of the deliverability side of this on the main
+site: [How to migrate an email list without wrecking your
+deliverability](https://day3.app/blog/migrate-email-list-without-losing-deliverability).

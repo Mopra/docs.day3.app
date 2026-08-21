@@ -1,0 +1,244 @@
+---
+title: Campaigns
+description: Draft, preview, test and send newsletters from code. One email to a whole audience, written in day3 Markdown.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Campaigns
+
+A campaign is a newsletter: one email to a whole audience, or to a segment or
+topic within it. Everything the composer in the app does is available here, so
+you can draft from a script or from an AI editor and still hand a human an
+editable campaign to look at before it goes out.
+
+Sending is the one part of this API that is genuinely irreversible, so it sits
+behind its own scope.
+
+## The Campaign object
+
+```json
+{
+  "id": "cmp_4v0dz1k9x2m7",
+  "object": "campaign",
+  "name": "August release",
+  "subject": "What shipped in August",
+  "preview_text": "Sending domains, faster imports, and a new API.",
+  "status": "draft",
+  "sandbox": false,
+  "audience_id": "aud_7k2m9x4v0dz1",
+  "segment_id": null,
+  "topic_id": null,
+  "sender_id": "snd_2v0dz1k9x4m",
+  "sending_domain_id": "dom_9x4v0dz1k2m",
+  "from_name": "Acme",
+  "from_email": "hello@yourdomain.com",
+  "reply_to": null,
+  "footer_text": null,
+  "risk_level": null,
+  "risk_summary": null,
+  "paused_reason": null,
+  "scheduled_at": null,
+  "sent_at": null,
+  "created_at": "2026-08-20T09:00:00.000Z",
+  "updated_at": "2026-08-20T09:00:00.000Z",
+  "url": "https://go.day3.app/campaigns/cmp_4v0dz1k9x2m7"
+}
+```
+
+`url` is where a human goes to look at it. Every write hands it back, so you
+never have to assemble the link yourself.
+
+## Campaign bodies
+
+Give the body as **exactly one** of these:
+
+| Field | Use it when |
+| --- | --- |
+| `markdown` | Almost always. day3 Markdown, described below. |
+| `sections` | You are round-tripping the composer's own structure. |
+| `html` | You have finished HTML. It is sanitized and stored without structure. |
+
+`markdown` is preferred because each construct becomes a real editable block in
+the visual composer, so what you write by API stays editable by hand. `html` is
+the opposite: it goes in as one opaque block.
+
+### day3 Markdown
+
+Ordinary Markdown, plus a few block constructs:
+
+```
+# Heading            (through ######)
+Plain paragraphs, **bold**, *italic*, `code`, [links](https://example.com)
+- bullet / 1. numbered lists
+---                                        a horizontal rule
+![Alt](https://cdn.example.com/a.png)      an image, alone on its own line
+[![Alt](img-url)](link-url)                an image that links somewhere
+[Label](https://x.com){.button}            a call-to-action button
+    options: {.button bg=#2563eb color=#ffffff full align=left}
+> A quote                                  a callout box
+> Attribution                              optional attribution line
+:::spacer 48:::                            blank vertical space, in pixels
+
+:::columns                                 two or three side-by-side columns
+### Left
+Text.
++++
+### Right
+Text.
+:::
+
+:::card image-left                         an image paired with text
+![Alt](https://cdn.example.com/p.png)      (also image-right / image-top)
+
+Text beside the image.
+:::
+
+:::social Follow us:                       a row of profile links
+- twitter: https://x.com/acme              (twitter, linkedin, facebook,
+- website: https://acme.com                 instagram, youtube, github,
+:::                                         website, email)
+
+:::section {bg=#f5f5f5 align=center}       tint or align a block
+Anything above.
+:::
+
+===                                        force a split between two text blocks
+```
+
+Images must be absolute `https` URLs that are already hosted publicly. The API
+cannot upload files.
+
+**Personalization**: `{{first_name}}`, `{{last_name}}` and `{{email}}` are merged
+per recipient, along with any [custom field](/fields) key. Give blank-safe copy a
+fallback: `{{first_name|there}}`.
+
+The footer's postal address and unsubscribe link are appended automatically and
+cannot be removed. That is a compliance requirement, not a setting.
+
+## List campaigns
+
+<Endpoint method="GET" path="/v1/campaigns" />
+
+Newest first, cursor-paginated. Filter with `?status=`.
+
+## Create a draft
+
+<Endpoint method="POST" path="/v1/campaigns" />
+
+Every field is optional. A draft is allowed to be incomplete, exactly as in the
+app, so you can create one and fill it in later.
+
+| Field | Notes |
+| --- | --- |
+| `subject` | The subject line. |
+| `markdown` / `sections` / `html` | The body. Exactly one. |
+| `name` | Internal name, never shown to recipients. |
+| `preview_text` | Inbox preview text. |
+| `audience_id` | Defaults to your only audience, when there is exactly one. |
+| `segment_id` | Send to a segment instead of the whole audience. |
+| `topic_id` | Send only to contacts subscribed to a topic. |
+| `sender_id` | Defaults to the account's default sender. |
+| `from_name`, `reply_to`, `footer_text` | Override the sender defaults. |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/campaigns \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "subject": "What shipped in August",
+        "preview_text": "Sending domains, faster imports, and a new API.",
+        "markdown": "# August\n\nHi {{first_name|there}}, here is what changed.\n\n[Read the changelog](https://day3.app/changelog){.button}"
+      }'
+```
+
+## Retrieve a campaign
+
+<Endpoint method="GET" path="/v1/campaigns/{campaign_id}" />
+
+Returns the campaign plus its body in all three representations: `markdown`,
+`sections` and `html`.
+
+<Callout type="warning">
+Read before editing. A `PATCH` that sends `markdown` replaces the body, so
+writing without reading first discards any change a human made in the composer.
+</Callout>
+
+## Update a campaign
+
+<Endpoint method="PATCH" path="/v1/campaigns/{campaign_id}" />
+
+Same fields as create. Only what you send changes.
+
+Returns `409` once the campaign has left `draft` or `scheduled`. A campaign that
+is sending or sent is immutable.
+
+## Delete a campaign
+
+<Endpoint method="DELETE" path="/v1/campaigns/{campaign_id}" />
+
+Drafts and scheduled campaigns only. A sent campaign is a record and stays.
+
+## Preview a campaign
+
+<Endpoint method="GET" path="/v1/campaigns/{campaign_id}/preview" />
+
+The rendered email, with the theme, merge tags and the compliance footer applied.
+Add `?format=html` to get the HTML document itself rather than a JSON wrapper.
+
+This is what you show a human, or read back to check your Markdown produced the
+blocks you expected.
+
+## Send a test
+
+<Endpoint method="POST" path="/v1/campaigns/{campaign_id}/test" />
+
+```json
+{ "to": "you@example.com" }
+```
+
+`to` is an address or an array of up to 5. A test goes **only** to the addresses
+you name and never to the audience.
+
+Test sends deliberately need **no scope**. They are the whole point of letting a
+script or an agent iterate on an email, and they cannot reach your list.
+
+## Send to the audience
+
+<Endpoint method="POST" path="/v1/campaigns/{campaign_id}/send" scope="campaigns:send" />
+
+<Callout type="error">
+This sends to the whole audience, immediately. There is no confirmation step and
+no undo. It starts the automated risk review, and delivery follows if that
+passes.
+</Callout>
+
+Requires a key with the `campaigns:send` scope, which is off by default and
+cannot be added to an existing key. If the key lacks it you get
+`403 insufficient_scope`: mint a key with sending enabled rather than working
+around it.
+
+## Schedule a send
+
+<Endpoint method="POST" path="/v1/campaigns/{campaign_id}/schedule" scope="campaigns:send" />
+
+```json
+{ "send_at": "2026-09-01T09:00:00Z" }
+```
+
+At least a minute in the future. Same scope and the same consequences as sending,
+just later.
+
+## Cancel a schedule
+
+<Endpoint method="DELETE" path="/v1/campaigns/{campaign_id}/schedule" />
+
+Returns the campaign to `draft`. Needs no scope, because un-sending is always
+safe.
+
+## Sandbox mode
+
+On a free plan a campaign send is real but reaches only members of your own
+organization, and the campaign carries `"sandbox": true`. The allowance is shared
+with API and test sends. See [Authentication](/authentication).

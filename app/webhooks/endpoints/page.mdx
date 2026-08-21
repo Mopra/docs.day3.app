@@ -1,0 +1,150 @@
+---
+title: Managing endpoints
+description: Provision webhook endpoints from deploy scripts and IaC. Requires the webhooks:manage scope.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Managing endpoints
+
+Webhook endpoints can be provisioned over the API, for deploy scripts and
+infrastructure-as-code. For the receiver side, see [Webhooks](/webhooks).
+
+<Callout type="warning">
+Every route on this page, **reads included**, requires a key with the
+`webhooks:manage` scope. It is off by default and cannot be added to an existing
+key. Without it you get `403 insufficient_scope`, and the fix is a new key.
+</Callout>
+
+Why reads are gated too: an endpoint is a standing feed of every address you
+mail, pushed to a URL of the caller's choosing. That makes endpoint creation the
+one write in v1 that is an exfiltration primitive rather than a content edit. A
+key with the base grant can read contacts, but it has to keep asking; a key that
+can add an endpoint gets them pushed to it forever, silently. The delivery log
+names the recipient of every event, so it is gated on the same reasoning.
+
+## The Webhook endpoint object
+
+```json
+{
+  "id": "whe_2v0dz1k9x4m7",
+  "object": "webhook_endpoint",
+  "url": "https://yourapp.com/webhooks/day3",
+  "description": "production",
+  "events": ["email.bounced", "email.complained", "suppression.created"],
+  "status": "active",
+  "consecutive_failures": 0,
+  "last_success_at": "2026-08-21T09:00:03.000Z",
+  "last_failure_at": null,
+  "last_error": null,
+  "created_at": "2026-08-15T09:00:00.000Z"
+}
+```
+
+`consecutive_failures`, `last_error` and `last_failure_at` are how you monitor an
+endpoint's health. Endpoints are never auto-disabled, so these fields are the
+signal.
+
+The signing secret is deliberately absent. See [below](#the-signing-secret).
+
+## List endpoints
+
+<Endpoint method="GET" path="/v1/webhooks" scope="webhooks:manage" />
+
+## Create an endpoint
+
+<Endpoint method="POST" path="/v1/webhooks" scope="webhooks:manage" />
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `url` | string | Yes | Public `https`, port 443 or 8443. |
+| `events` | string[] | Yes | Which [events](/webhooks) to send. |
+| `description` | string | No | For your own bookkeeping. |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/webhooks \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "url": "https://yourapp.com/webhooks/day3",
+        "description": "production",
+        "events": ["email.bounced", "email.complained", "suppression.created"]
+      }'
+```
+
+<Callout type="error">
+The response to this `POST` is the **only** time the signing secret is ever
+returned. Capture it now.
+</Callout>
+
+```json
+{
+  "id": "whe_2v0dz1k9x4m7",
+  "object": "webhook_endpoint",
+  "url": "https://yourapp.com/webhooks/day3",
+  "secret": "whsec_...",
+  "events": ["email.bounced", "email.complained", "suppression.created"],
+  "status": "active"
+}
+```
+
+## Retrieve an endpoint
+
+<Endpoint method="GET" path="/v1/webhooks/{webhook_id}" scope="webhooks:manage" />
+
+## Update an endpoint
+
+<Endpoint method="PATCH" path="/v1/webhooks/{webhook_id}" scope="webhooks:manage" />
+
+`url`, `description`, `events` and `status`. Changing `events` replaces the list
+rather than adding to it.
+
+## Delete an endpoint
+
+<Endpoint method="DELETE" path="/v1/webhooks/{webhook_id}" scope="webhooks:manage" />
+
+Removes the endpoint **and its delivery history**.
+
+## Delivery log
+
+<Endpoint method="GET" path="/v1/webhooks/{webhook_id}/deliveries" scope="webhooks:manage" />
+
+Cursor-paginated, newest first. Filter with `?status=`.
+
+```json
+{
+  "id": "whd_9x4v0dz1k2m7",
+  "object": "webhook_delivery",
+  "endpoint_id": "whe_2v0dz1k9x4m7",
+  "event_id": "evt_2k4h9x4v0dz1",
+  "event_type": "email.bounced",
+  "status": "failed",
+  "attempt": 3,
+  "response_status": 502,
+  "error": "Bad Gateway",
+  "duration_ms": 10012,
+  "next_attempt_at": "2026-08-21T09:40:00.000Z",
+  "delivered_at": null,
+  "created_at": "2026-08-21T09:00:00.000Z"
+}
+```
+
+Rows are kept for 30 days.
+
+Note that the **signed payload is not here.** Over the API it would be a
+paginated way to read back every event body, and therefore every address you
+mail. The app's delivery log view shows it.
+
+## The signing secret
+
+Two things stay out of the API on purpose:
+
+- **The signing secret** is returned once by `POST` and has no other
+  representation at any scope. Reveal and rotate live in the app UI behind a
+  session, because a key that could read the secret could forge our events into
+  your own receiver.
+- **The signed payload**, as above.
+
+If you lost the secret, rotate it in the app under **API keys**, then
+**Webhooks**. See [rotating the secret](/webhooks) for the zero-downtime order.

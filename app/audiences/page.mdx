@@ -1,0 +1,115 @@
+---
+title: Audiences
+description: Create and manage audiences, the lists that contain every contact, field, segment and topic.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Audiences
+
+An audience is a list of contacts. Everything else in the list model lives inside
+one: contacts, custom fields, segments and topics are all scoped to an audience.
+
+Subscribers are unlimited on every plan. You are billed on emails sent, so
+holding a large audience costs nothing.
+
+## The Audience object
+
+```json
+{
+  "id": "aud_7k2m9x4v0dz1",
+  "object": "audience",
+  "name": "Product newsletter",
+  "contact_counts": {
+    "subscribed": 4210,
+    "unsubscribed": 130,
+    "total": 4402
+  },
+  "created_at": "2026-01-15T09:30:00.000Z",
+  "updated_at": "2026-06-01T14:00:00.000Z"
+}
+```
+
+`contact_counts` appears on `GET /audiences/{id}` only. The list endpoint omits
+it, because it is a count query per row.
+
+## List audiences
+
+<Endpoint method="GET" path="/v1/audiences" />
+
+Cursor-paginated, newest first. No `contact_counts`.
+
+```bash
+curl https://go.day3.app/api/v1/audiences \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "aud_7k2m9x4v0dz1",
+      "object": "audience",
+      "name": "Product newsletter",
+      "created_at": "2026-01-15T09:30:00.000Z",
+      "updated_at": "2026-06-01T14:00:00.000Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+## Create an audience
+
+<Endpoint method="POST" path="/v1/audiences" />
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | Yes | 1 to 100 characters. |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/audiences \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Product newsletter" }'
+```
+
+Returns `201` with the Audience object.
+
+## Retrieve an audience
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}" />
+
+Includes `contact_counts`, broken down by status plus a `total`.
+
+## Update an audience
+
+<Endpoint method="PATCH" path="/v1/audiences/{audience_id}" />
+
+Renaming is the only change available.
+
+```bash
+curl -X PATCH https://go.day3.app/api/v1/audiences/aud_7k2m9x4v0dz1 \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Changelog" }'
+```
+
+## Delete an audience
+
+<Endpoint method="DELETE" path="/v1/audiences/{audience_id}" />
+
+<Callout type="error">
+Deleting an audience also deletes **every contact, field, segment and topic
+inside it**. It is irreversible and there is no confirmation step. If you only
+want to stop mailing people, set their contacts to `unsubscribed` instead.
+</Callout>
+
+```json
+{ "id": "aud_7k2m9x4v0dz1", "deleted": true }
+```
+
+Account-wide suppression entries survive: they are not audience-scoped. See
+[Suppressions](/suppressions).

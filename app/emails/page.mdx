@@ -1,0 +1,228 @@
+---
+title: Emails
+description: Send transactional email through the day3 API. Password resets, receipts and magic links, out of the same verified domain as your newsletter.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Emails
+
+Transactional email: your app's password resets, receipts and magic links. They
+go out from the same verified domain and draw on the same monthly allowance as
+your campaigns, so there is no second provider and no second reputation to
+manage.
+
+The request shape is Resend-compatible, so an existing integration usually only
+needs its base URL, key and `from` changed.
+
+## The Email object
+
+```json
+{
+  "id": "eml_0dz4k9x2v7q1",
+  "object": "email",
+  "from": "Acme <noreply@yourdomain.com>",
+  "to": ["jane@acme.com"],
+  "reply_to": null,
+  "subject": "Reset your password",
+  "status": "delivered",
+  "error": null,
+  "tags": { "type": "password-reset" },
+  "sandbox": false,
+  "created_at": "2026-08-21T09:00:00.000Z",
+  "sent_at": "2026-08-21T09:00:01.000Z",
+  "delivered_at": "2026-08-21T09:00:03.000Z",
+  "bounced_at": null,
+  "complained_at": null
+}
+```
+
+### Status
+
+`status` walks `queued` then `sent` then `delivered`, or ends at one of
+`bounced`, `complained`, `failed`, `suppressed`.
+
+| Status | Meaning |
+| --- | --- |
+| `queued` | Accepted and waiting for the worker. |
+| `sent` | Handed to the mail provider. Not yet delivered. |
+| `delivered` | The receiving server accepted it. |
+| `bounced` | Came back. The address may now be suppressed. |
+| `complained` | Marked as spam by the recipient. The address is suppressed. |
+| `failed` | Never left. `error` says why. |
+| `suppressed` | Blocked before sending, because the address is unmailable. |
+
+Delivery is asynchronous. A transactional send is a top-priority worker job and
+never waits behind a campaign drain, so it normally completes in seconds.
+
+## Send an email
+
+<Endpoint method="POST" path="/v1/emails" />
+
+```bash
+curl -X POST https://go.day3.app/api/v1/emails \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: pwreset-user-8412-1755764400" \
+  -d '{
+        "from": "Acme <noreply@yourdomain.com>",
+        "to": ["jane@acme.com"],
+        "subject": "Reset your password",
+        "html": "<p>Click to reset.</p>",
+        "text": "Click to reset.",
+        "reply_to": "support@yourdomain.com",
+        "headers": { "X-Entity-Ref-ID": "pwreset-8412" },
+        "tags": { "type": "password-reset" }
+      }'
+```
+
+### Body
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `from` | string | Yes | A bare address or `"Name <addr>"`. The domain must be verified. |
+| `to` | string or string[] | Yes | Up to 50 addresses. See below. |
+| `subject` | string | Yes | Control characters are rejected. |
+| `html` | string | One of | HTML body. |
+| `text` | string | One of | Plain-text body. Send both when you can. |
+| `reply_to` | string | No | Any address. Does not have to be on your domain. |
+| `headers` | object | No | Up to 20 custom headers. Reserved names are rejected. |
+| `tags` | object | No | Flat string map, for your own filtering. |
+
+At least one of `html` or `text` is required.
+
+The response is the Email object with `status: "queued"`, returned as `200`.
+
+<Callout type="info">
+Always set `Idempotency-Key` on a send. A retried password reset that sends
+twice is a support ticket. See [Idempotency](/conventions).
+</Callout>
+
+### `from` must be on a verified domain
+
+Verify the domain in the app under **Domains**. After that, any local part works
+without pre-creating a sender: `noreply@`, `receipts@`, `billing@`.
+
+An unverified domain is `403 domain_not_verified`. Verify it rather than
+retrying.
+
+### Multiple recipients
+
+`to` accepts a string or an array of up to 50 addresses. An array is **one
+message whose To header lists them all**, not 50 separate emails. Everyone sees
+everyone.
+
+Addresses are canonicalized, meaning trimmed and lowercased, then
+de-duplicated. Each surviving address counts against your monthly allowance.
+
+If you need 50 people not to see each other, send 50 requests.
+
+### Custom headers
+
+Up to 20. Anything day3 derives from the body or needs for delivery is
+rejected with `400`:
+
+- Body-derived: `From`, `To`, `Subject`, `Reply-To` and friends.
+- MIME plumbing.
+- Authentication and trace headers: `DKIM-Signature`,
+  `Authentication-Results`, `ARC-*`, `Received`, `Sender`, `Resent-*`.
+- The unsubscribe headers.
+- Our own `X-Account-ID` and `X-Transactional-Email-ID`.
+- Anything starting with `X-SES-`.
+
+### Limits
+
+| Limit | Value |
+| --- | --- |
+| Recipients per message | 50 |
+| Custom headers | 20 |
+| Total size of `html` + `text` + `headers` + `tags` | 1.5 MB of UTF-8 |
+| Rate | 120 sends per minute per organization |
+
+Control characters are rejected in `subject`, header values and addresses, and a
+display name may not contain `<`, `>`, `"` or `\`. That is header-injection
+defence, not style preference.
+
+## Retrieve an email
+
+<Endpoint method="GET" path="/v1/emails/{email_id}" />
+
+Returns the Email object plus `events`, the delivery timeline fed by the
+provider:
+
+```json
+{
+  "id": "eml_0dz4k9x2v7q1",
+  "object": "email",
+  "status": "delivered",
+  "events": [
+    { "type": "sent", "created_at": "2026-08-21T09:00:01.000Z" },
+    { "type": "delivery", "created_at": "2026-08-21T09:00:03.000Z" }
+  ]
+}
+```
+
+<Callout type="warning">
+Bodies are pruned after 30 days. The metadata row is kept forever, and the API
+reports the content as expired rather than returning an empty string.
+</Callout>
+
+## List emails
+
+<Endpoint method="GET" path="/v1/emails" />
+
+Newest first, cursor-paginated. Filter with
+`?status=queued|sent|delivered|bounced|complained|failed|suppressed`.
+
+```bash
+curl "https://go.day3.app/api/v1/emails?status=bounced&limit=100" \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+## How suppression works here
+
+Transactional mail deliberately follows different rules from campaigns:
+
+- **An unsubscribe does not block a transactional send.** Opting out of a
+  newsletter must never stop a password reset arriving.
+- **A hard bounce, a complaint, or a provider suppression does block it**, with
+  `400 email_suppressed`. Do not retry: the address is unmailable and trying
+  again damages your reputation.
+
+Bounces and complaints on transactional mail feed the suppression list and count
+towards the account's reputation auto-pause exactly like campaign sends do. This
+is not a separate reputation.
+
+## Sandbox mode
+
+On a free plan, sends are real but restricted to addresses of members of your own
+organization, on a small monthly allowance. Responses carry `"sandbox": true`.
+
+| Situation | Response |
+| --- | --- |
+| Recipient outside your organization | `403 sandbox_recipient_not_allowed` |
+| Allowance exhausted | `403 plan_limit_reached` |
+
+Upgrading lifts both with no code change. See
+[Authentication](/authentication).
+
+## Errors
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| 400 | `invalid_request` | Missing required field, a reserved header, or over a size limit. |
+| 400 | `invalid_email` | An address is not valid. |
+| 400 | `email_suppressed` | The address hard-bounced, complained, or is provider-suppressed. |
+| 403 | `domain_not_verified` | The `from` domain is not verified. |
+| 403 | `sandbox_recipient_not_allowed` | Free plan, recipient outside the organization. |
+| 403 | `plan_limit_reached` | Monthly send allowance exhausted. |
+| 403 | `sending_disabled` | Sending is off for this account. |
+| 429 | `rate_limit_exceeded` | Over 120 sends per minute. Honour `Retry-After`. |
+
+## Knowing what happened, without polling
+
+Polling `GET /emails/{id}` works, but [webhooks](/webhooks) are better: day3
+POSTs `email.delivered`, `email.bounced`, `email.complained` and
+`suppression.created` to your endpoint as they happen. `suppression.created` is
+the one that keeps your own database honest about which addresses are dead.

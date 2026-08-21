@@ -1,0 +1,114 @@
+---
+title: Fields
+description: The custom attribute registry for an audience. Fields register themselves when contacts arrive with new attribute keys.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Fields
+
+A field is a registered custom attribute key on one audience. Fields give an
+attribute a label, a type and a fallback, and they are what makes a
+`{{merge_tag}}` available in a campaign.
+
+You rarely need to create one. Fields **register themselves** when a contact
+arrives carrying an attribute key that does not exist yet, exactly as they do on
+CSV import. Unlike Mailchimp merge fields, there is nothing to declare before an
+import.
+
+Create one explicitly when you want to set the `label`, `type` or `fallback` up
+front rather than accepting the defaults.
+
+## The Field object
+
+```json
+{
+  "id": "fld_1x9k4m2v0dz7",
+  "object": "field",
+  "key": "company",
+  "label": "Company",
+  "type": "text",
+  "fallback": null,
+  "created_at": "2026-04-02T11:00:00.000Z",
+  "updated_at": "2026-04-02T11:00:00.000Z"
+}
+```
+
+| Field | Notes |
+| --- | --- |
+| `key` | The attribute key. Immutable. Normalized to `snake_case`. |
+| `label` | Human label shown in the app. Defaults from the key. |
+| `type` | `text`, `number` or `date`. |
+| `fallback` | Value substituted when a contact has no value for this key. |
+
+<Callout type="info">
+`type` describes how the app treats the value, for segment operators and
+formatting. The stored attribute value on a contact is **always a string**. A
+`number` field still needs `"5"`, not `5`. See [Contacts](/contacts).
+</Callout>
+
+### Addressing a field
+
+Either the id or the key:
+
+- `/fields/fld_1x9k4m2v0dz7`
+- `/fields/company`
+
+## List fields
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}/fields" />
+
+```bash
+curl https://go.day3.app/api/v1/audiences/aud_123/fields \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+## Create a field
+
+<Endpoint method="POST" path="/v1/audiences/{audience_id}/fields" />
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `key` | string | Yes | Normalized to `snake_case`. |
+| `label` | string | No | Defaults from the key. |
+| `type` | string | No | `text` (default), `number` or `date`. |
+| `fallback` | string | No | Used when a contact has no value. |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/audiences/aud_123/fields \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "key": "plan", "label": "Plan", "type": "text", "fallback": "free" }'
+```
+
+## Retrieve a field
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}/fields/{id_or_key}" />
+
+## Update a field
+
+<Endpoint method="PATCH" path="/v1/audiences/{audience_id}/fields/{id_or_key}" />
+
+`label`, `type` and `fallback` can change.
+
+<Callout type="warning">
+**`key` is immutable.** Renaming it would orphan every stored attribute value on
+every contact, so a `PATCH` containing `key` returns `422 immutable_field`. To
+rename in practice: create the new field, rewrite the contacts, delete the old
+one.
+</Callout>
+
+## Delete a field
+
+<Endpoint method="DELETE" path="/v1/audiences/{audience_id}/fields/{id_or_key}" />
+
+Removes the **registry row only**. Stored values in contact `attributes` are left
+untouched, so the data is still there and the field will re-register itself the
+next time a contact arrives with that key.
+
+To actually clear the values, `PATCH` the contacts with the key set to `null`.
+
+```json
+{ "id": "fld_1x9k4m2v0dz7", "deleted": true }
+```

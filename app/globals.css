@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   BRAND TOKENS
+   Mirrored from the marketing site (day3.app.website/app/globals.css) so the
+   docs, the app and the site read as one product. Only the subset the docs
+   actually paints is carried over: no chart, tier or motion tokens live here.
+   If a value changes in the site's token block, change it here too.
+
+   Palette: cream + espresso + caramel.
+   ============================================================================= */
+:root {
+  --cream: #f7f1e8;
+  --espresso: #241c17;
+  --oat: #e8dccb;
+  --caramel: #b98145;
+
+  --background: #f7f1e8;
+  --foreground: #241c17;
+  --card: #fcf8f1;
+  --muted: #efe6d6;
+  --muted-foreground: #5e5346;
+  --border: #e3d7c3;
+
+  /* Docs-only. The site spends caramel as a *fill* with white on top, so it
+     never has to survive as text. Nextra runs the primary as link and
+     active-nav colour directly on the canvas, where native caramel (#b98145)
+     lands at 2.97:1 on cream and fails. Darkened to hsl(31 46% 38%) = 4.76:1.
+     The same triple is handed to Nextra's <Head color> in app/layout.tsx.
+     Change both together. */
+  --link: hsl(31 46% 38%);
+
+  /* HTTP-method badges. Reads are calm, writes escalate, DELETE is the clay
+     the site already uses for destructive. */
+  --method-get: #4a5a3f;
+  --method-post: #6f5a2e;
+  --method-patch: #7a5230;
+  --method-delete: #a35f45;
+}
+
+.dark {
+  --background: #1a1410;
+  --foreground: #f2e9da;
+  --card: #221a14;
+  --muted: #2c2219;
+  --muted-foreground: #b3a795;
+  --border: #33281f;
+
+  /* On the dark canvas caramel is bright enough to lead, matching the site's
+     dark --primary (#c98f53). hsl(31 46% 56%) = 6.5:1 on #1a1410. */
+  --link: hsl(31 46% 56%);
+
+  --method-get: #a8bd96;
+  --method-post: #d6bc82;
+  --method-patch: #dba874;
+  --method-delete: #d99a82;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-link: var(--link);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-instrument-serif), Georgia, serif;
+}
+
+/* Nextra paints its own surfaces from the <Head> props; these are the few
+   places the theme reads a variable we own rather than one it generates. */
+body {
+  font-family: var(--font-sans);
+}
+
+/* The h1 on every page is the one place the site's display serif appears, so a
+   reader arriving from day3.app recognises the typography immediately. */
+.nextra-content h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Wide reference tables are the norm here (field / type / required /
+   description). Let them scroll inside their own box instead of stretching the
+   prose column. */
+.nextra-content table {
+  display: table;
+  width: 100%;
+}

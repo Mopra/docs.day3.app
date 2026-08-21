@@ -1,0 +1,116 @@
+---
+title: Authentication
+description: API keys, key format, scopes, and how sandbox mode works on free plans.
+---
+
+# Authentication
+
+Every request carries an API key as a bearer token:
+
+```
+Authorization: Bearer day3_live_x7Kj9mP2...
+```
+
+There is no other authentication mode. The app's own session cookies work only
+on its private routes, never on `/api/v1`.
+
+## Keys
+
+Keys are created and revoked in the app on the **API keys** page, and you have
+to be an admin of the organization. There are deliberately no key-management
+endpoints in the API itself: a key must not be able to mint another key.
+
+A key belongs to exactly one organization. The account is always resolved from
+the key on the server, never from anything in the request, so a key cannot reach
+another organization's data even by id.
+
+### Format
+
+```
+day3_<env>_<40 characters>
+```
+
+`env` is `live` or `test`. The prefix makes keys recognisable to secret
+scanners.
+
+Only a SHA-256 hash is stored, so a database leak never leaks a usable
+credential, and a lost key cannot be recovered. Revoke it and mint another. The
+app shows the first eight characters after the prefix so you can tell keys apart
+in the list.
+
+`day3_test_...` is reserved in the format but not implemented. Using one returns
+`403 test_keys_not_supported` rather than silently hitting live data. For
+test-like behaviour, use a free organization and [sandbox
+mode](#sandbox-mode-on-free-plans).
+
+### Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| 401 | `invalid_api_key` | Missing, malformed, or unknown key. |
+| 401 | `revoked_api_key` | The key existed and was revoked. |
+| 403 | `test_keys_not_supported` | A `day3_test_` key was used. |
+
+## Scopes
+
+The base grant is deliberately wide. A key with no scopes at all can read and
+write content: audiences, contacts, fields, segments, topics, campaign drafts,
+and transactional sends.
+
+Two actions sit outside that, because their blast radius reaches beyond the
+account and cannot be undone:
+
+| Scope | Unlocks |
+| --- | --- |
+| `campaigns:send` | `POST /campaigns/{id}/send` and `POST /campaigns/{id}/schedule`. |
+| `webhooks:manage` | Every `/webhooks` route, reads included. |
+
+Both are off by default and chosen at key creation. **A scope cannot be added to
+an existing key.** You mint a new one, which keeps the grant visible in the key
+list instead of buried in an edit history.
+
+Missing scope returns `403 insufficient_scope`. Do not work around it: the fix
+is a new key.
+
+Why these two:
+
+- **Sending to an audience** matters more for an AI agent than for a script. A
+  script does what its author wrote; an agent holding the same key decides for
+  itself, and "email everyone on the list" is not a decision to hand over by
+  default. Test sends are deliberately *not* scoped, because they only reach
+  addresses the caller names and they are the whole point of letting an agent
+  iterate on an email.
+- **A webhook endpoint** is a standing feed of every address you mail, pushed to
+  a URL of the caller's choosing. That makes endpoint creation the one write in
+  the API that is an exfiltration primitive rather than a content edit. Reads
+  are gated for the same reason: the delivery log names the recipient of every
+  event.
+
+## Sandbox mode on free plans
+
+A free organization has full API access, with two limits on sending:
+
+- Recipients must be members of your own organization. Anyone else is
+  `403 sandbox_recipient_not_allowed`.
+- There is a small monthly allowance. Exhausting it is
+  `403 plan_limit_reached`.
+
+Sends that go out this way are real email, and responses carry
+`"sandbox": true`. The allowance is shared with the app's own sandbox sends, so
+campaigns, test sends and API sends all draw from one monthly pool.
+
+Upgrading lifts both restrictions with no code change.
+
+Free plans also cap the list at 500 subscribers. Contact writes that would cross
+that return `403 plan_limit_reached`, and a batch is rejected whole rather than
+partially applied.
+
+## Keeping a key safe
+
+- Read it from an environment variable. Do not hard-code it and do not commit
+  it.
+- Do not paste it into a prompt or a third-party chat tool. When you want an AI
+  assistant to use the API, tell it to read `DAY3_API_KEY` from the environment.
+- Mint separate keys per environment so you can revoke one without an outage.
+- Revoking is immediate. Rotation is: mint the new key, deploy it, revoke the
+  old one.

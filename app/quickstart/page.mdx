@@ -1,0 +1,94 @@
+---
+title: Quickstart
+description: From nothing to a delivered transactional email in three steps.
+---
+
+# Quickstart
+
+Three steps to a delivered email. You need a day3 account and a verified sending
+domain.
+
+## 1. Mint a key
+
+In the app, go to **API keys** and create one. You have to be an admin of the
+organization. The full key is shown once, at creation, and never again: day3
+stores only a SHA-256 hash of it.
+
+Leave the elevated scopes off for now. The base grant already covers sending
+transactional email and everything to do with lists.
+
+```bash
+export DAY3_API_KEY="day3_live_xxxxxxxxxxxxxxxxxxxx"
+```
+
+Read the key from the environment in your code. Never commit it and never paste
+it into a prompt.
+
+## 2. Check that it works
+
+```bash
+curl https://go.day3.app/api/v1/audiences \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+A `200` with a `data` array means the key is live. A `401 invalid_api_key` means
+it was mistyped or revoked.
+
+## 3. Verify a domain, then send
+
+Sending needs a verified sending domain, which is set up in the app under
+**Domains**. Once it is verified, any local part on it works without
+pre-creating a sender: `noreply@`, `receipts@`, `hello@`.
+
+```bash
+curl -X POST https://go.day3.app/api/v1/emails \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+        "from": "Acme <noreply@yourdomain.com>",
+        "to": ["you@example.com"],
+        "subject": "Hello from day3",
+        "html": "<p>It works.</p>"
+      }'
+```
+
+The response is the [Email object](/emails) with `status: "queued"`. Delivery is
+asynchronous and normally lands within seconds:
+
+```json
+{
+  "id": "eml_0dz4k9x2v7q1",
+  "object": "email",
+  "from": "Acme <noreply@yourdomain.com>",
+  "to": ["you@example.com"],
+  "subject": "Hello from day3",
+  "status": "queued",
+  "sandbox": false,
+  "created_at": "2026-08-21T09:00:00.000Z",
+  "sent_at": null,
+  "delivered_at": null
+}
+```
+
+Poll `GET /emails/{id}` to watch it walk to `delivered`, or take
+[webhooks](/webhooks) so day3 tells you instead.
+
+## On a free plan
+
+You can still do all of this. A free organization sends in **sandbox mode**:
+real email, but only to addresses belonging to members of your own organization,
+on a small monthly allowance. Responses carry `"sandbox": true`.
+
+Anyone else is `403 sandbox_recipient_not_allowed`. Upgrading lifts both limits
+with no code change, so an integration written against sandbox mode is already
+the production integration.
+
+## Where to go next
+
+- [Emails](/emails) for the full sending contract, including multiple
+  recipients, custom headers and tags.
+- [Conventions](/conventions) for pagination, idempotency and rate limits. Worth
+  ten minutes before you write an import script.
+- [Migrate a list](/guides/migrate-a-list) if you are moving off another
+  provider.

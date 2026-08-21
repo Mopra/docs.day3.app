@@ -1,0 +1,74 @@
+---
+title: day3 API
+description: Send transactional email, manage audiences and contacts, and drive campaigns from code or from an AI editor.
+---
+
+# day3 API
+
+day3 is an email platform billed by the emails you send, never by the size of
+your list. This API is how your code uses it.
+
+There are two things it does:
+
+- **Send transactional email.** Password resets, receipts, magic links. One
+  `POST`, out of the same verified domain and the same monthly allowance as your
+  newsletter.
+- **Manage the list.** Audiences, contacts, custom fields, segments, topics and
+  suppressions, built so that moving a list off another provider is a short
+  script rather than a project.
+
+Campaigns can also be drafted, previewed, tested and sent over the API, and the
+same surface is exposed to AI editors through an [MCP server](/mcp).
+
+## Base URL
+
+```
+https://go.day3.app/api/v1
+```
+
+The app is served from `go.day3.app`, so the API is too. `day3.app` is the
+marketing site and has no API.
+
+## Your first request
+
+```bash
+curl https://go.day3.app/api/v1/audiences \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+If that returns a JSON object with a `data` array, you are done setting up. The
+[quickstart](/quickstart) goes from nothing to a delivered email in three steps.
+
+## How to read these docs
+
+| If you want to | Start at |
+| --- | --- |
+| Send your app's operational email | [Emails](/emails) |
+| Move a list off Resend, Mailchimp or Kit | [Migrate a list](/guides/migrate-a-list) |
+| Keep your users in sync with an audience | [Contacts](/contacts) |
+| Know when mail bounces, without polling | [Webhooks](/webhooks) |
+| Write and send a newsletter from code | [Campaigns](/campaigns) |
+| Let Claude Code or Cursor draft an email | [MCP server](/mcp) |
+
+Read [Conventions](/conventions) once. Pagination, idempotency, ids and rate
+limits work the same way on every endpoint, and they are not repeated on each
+page.
+
+## Objects
+
+| Object | Id prefix | What it is |
+| --- | --- | --- |
+| Email | `eml_` | One transactional email sent through the API. |
+| Audience | `aud_` | A list of contacts. Everything else lives inside one. |
+| Contact | `sub_` | A subscriber. Unique by email within an audience. |
+| Field | `fld_` | A registered custom attribute key. |
+| Segment | `seg_` | A saved filter, evaluated live at read time. |
+| Topic | `top_` | A subscription category a contact can opt out of on its own. |
+| Campaign | `cmp_` | A newsletter: one email to a whole audience. |
+| Suppression | `sup_` | An account-wide "never email this address" entry. |
+
+## Not in v1
+
+Domains, senders and OAuth have no endpoints. Verify a sending domain in the app
+under **Domains** before your first send. If you are writing against the API and
+need one of these, it does not exist yet rather than being undocumented.

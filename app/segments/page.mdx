@@ -1,0 +1,138 @@
+---
+title: Segments
+description: Saved filters over an audience, evaluated live at read time. Full CRUD plus a live members endpoint.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Segments
+
+A segment is a saved filter over one audience. Segments are **live**: membership
+is computed at read time and never materialized, so a segment is always current
+and there is nothing to refresh.
+
+Use one to target a campaign, or as a `?segment_id=` filter when listing
+[contacts](/contacts).
+
+## The Segment object
+
+```json
+{
+  "id": "seg_456m9x4v0dz1",
+  "object": "segment",
+  "name": "Pro-plan customers",
+  "filter": {
+    "match": "all",
+    "conditions": [
+      { "field": "plan", "op": "equals", "value": "pro" },
+      { "field": "company", "op": "is_set" }
+    ]
+  },
+  "created_at": "2026-05-01T10:00:00.000Z",
+  "updated_at": "2026-05-01T10:00:00.000Z"
+}
+```
+
+## The filter contract
+
+`filter` is the whole contract, and it is stable.
+
+| Key | Values |
+| --- | --- |
+| `match` | `"all"` or `"any"`. |
+| `conditions` | 1 to 10 conditions. |
+
+Each condition is `{ field, op, value? }`.
+
+**`field`** is `email`, `first_name`, `last_name`, or any custom attribute key.
+
+**`op`** is one of:
+
+| Operator | Takes a `value` | Notes |
+| --- | --- | --- |
+| `equals` | Yes | |
+| `not_equals` | Yes | |
+| `contains` | Yes | Substring. |
+| `not_contains` | Yes | |
+| `is_set` | No | Has any non-empty value. |
+| `is_not_set` | No | |
+| `greater_than` | Yes | Numeric comparison. |
+| `less_than` | Yes | Numeric comparison. |
+
+`is_set` and `is_not_set` take no `value`. `greater_than` and `less_than` need a
+numeric one.
+
+New operators may be added over time. That is additive and non-breaking: nothing
+is ever removed.
+
+A malformed filter is `400 invalid_filter`, and the message names the offending
+condition index.
+
+<Callout type="info">
+Attribute values are stored as strings, so `greater_than` on a `number` field
+compares numerically while the stored value is still `"5"`. Give the filter a
+numeric `value`, not a quoted one.
+</Callout>
+
+## List segments
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}/segments" />
+
+## Create a segment
+
+<Endpoint method="POST" path="/v1/audiences/{audience_id}/segments" />
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `name` | string | Yes |
+| `filter` | object | Yes |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/audiences/aud_123/segments \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "Pro customers",
+        "filter": {
+          "match": "all",
+          "conditions": [
+            { "field": "plan", "op": "equals", "value": "pro" },
+            { "field": "company", "op": "is_set" }
+          ]
+        }
+      }'
+```
+
+## Retrieve a segment
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
+
+## Update a segment
+
+<Endpoint method="PATCH" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
+
+`name`, `filter`, or both. A `filter` you send replaces the previous one whole
+rather than merging into it.
+
+## Delete a segment
+
+<Endpoint method="DELETE" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
+
+Deletes the saved filter. Contacts are untouched, because a segment never owned
+them.
+
+## List the members of a segment
+
+<Endpoint method="GET" path="/v1/audiences/{audience_id}/segments/{segment_id}/contacts" />
+
+Current matches, evaluated at request time, with standard
+[pagination](/conventions). Returns [Contact](/contacts) objects.
+
+```bash
+curl "https://go.day3.app/api/v1/audiences/aud_123/segments/seg_456/contacts?limit=100" \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+Equivalent to listing contacts with `?segment_id=seg_456`. Use whichever reads
+better in your code.
