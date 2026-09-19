@@ -1,6 +1,6 @@
 # day3 API documentation
 
-> Reference for the day3 email API. day3 is an email platform billed by emails sent, never by list size. The API sends transactional email (password resets, receipts, magic links), manages audiences and contacts, drives newsletter campaigns, and exposes the same surface to AI editors over MCP.
+> Reference for the day3 email API. day3 is an email platform billed by emails sent, never by list size. The API sends transactional email (password resets, receipts, magic links), manages audiences and contacts, drives newsletter campaigns, enrolls contacts in automations, and exposes the same surface to AI editors over MCP.
 
 - Base URL: `https://go.day3.app/api/v1` (the app origin, not `day3.app`)
 - Auth: `Authorization: Bearer day3_live_...` on every request
@@ -11,20 +11,21 @@
 ## Start here
 
 - [Introduction](https://docs.day3.app/): what the API does, the object list, and what is not in v1
-- [Quickstart](https://docs.day3.app/quickstart): key, verification request, first send
-- [Authentication](https://docs.day3.app/authentication): key format, the two scopes, sandbox mode on free plans
+- [Quickstart](https://docs.day3.app/quickstart): key, verification request, first send with no DNS setup
+- [Authentication](https://docs.day3.app/authentication): key format, the three scopes, sandbox mode on free plans
 - [Conventions](https://docs.day3.app/conventions): pagination, idempotency, rate limits, and the silently-dropped-fields trap
 - [Errors](https://docs.day3.app/errors): the single error envelope, every code, and which are worth retrying
 
 ## Reference
 
 - [Emails](https://docs.day3.app/emails): `POST /emails` transactional sending, up to 50 recipients per message, delivery status
-- [Audiences](https://docs.day3.app/audiences): lists that contain everything else. Unlimited subscribers on every plan
+- [Audiences](https://docs.day3.app/audiences): lists that contain everything else. Unlimited subscribers on paid plans, 500 on free
 - [Contacts](https://docs.day3.app/contacts): create, upsert, and the 1,000-per-call batch endpoint. Addressable by plain email
 - [Fields](https://docs.day3.app/fields): custom attributes, which register themselves rather than being declared
 - [Segments](https://docs.day3.app/segments): saved filters, evaluated live at read time
 - [Topics](https://docs.day3.app/topics): subscription categories a contact can leave individually
 - [Campaigns](https://docs.day3.app/campaigns): draft, preview, test and send newsletters. Bodies in day3 Markdown
+- [Automations](https://docs.day3.app/automations): list published flows and enroll one contact at a time. Needs the `automations:enroll` scope
 - [Suppressions](https://docs.day3.app/suppressions): the account-wide never-email list. Add-only over the API
 
 ## Integrations
@@ -39,11 +40,14 @@
 
 ## Facts worth getting right
 
-- Sending requires a verified sending domain. Any local part on it works with no pre-created sender. An unverified domain is `403 domain_not_verified`.
-- Free plans send in sandbox mode: real email, but only to members of the caller's own organization, on a small monthly allowance. Responses carry `"sandbox": true`.
-- Two scopes exist, both off by default and neither addable to an existing key: `campaigns:send` and `webhooks:manage`.
+- Sending to real subscribers requires a verified sending domain. Any local part on it works with no pre-created sender. An unverified domain is `403 domain_not_verified`.
+- A new organization is given a day3 test address on a shared domain (`something@sandbox.day3.app`), so the first send needs no DNS. It only carries sandbox mail: org members only, and it stops working on a paid plan. Its exact value is shown in the app under Sending.
+- Free plans send in sandbox mode: real email, but only to members of the caller's own organization, capped at 100 emails a month across campaigns, test sends and the API. Responses carry `"sandbox": true`.
+- Free plans cap the account at 500 subscribers. Paid plans do not cap subscribers at all.
+- Three scopes exist, all off by default and none addable to an existing key: `campaigns:send`, `automations:enroll` and `webhooks:manage`.
 - Rate limit is 600 requests per minute per organization. Transactional sending has its own 120-per-minute bucket inside it. A batch call counts as one request.
 - Contacts cannot be backdated: `created_at` in a payload is silently dropped. `unsubscribed_at` is honoured on create.
-- Attribute values must be strings. A number or boolean rejects the entire batch, not the offending row.
+- Attribute values must be strings. A number or boolean rejects the entire batch, not the offending row. The same holds for a segment condition's `value`.
+- Enrolling in an automation returns `200` with an `outcome`; only `outcome: "enrolled"` started a run. Everything else names the gate that refused.
 - Transactional mail ignores unsubscribes but honours bounce and complaint suppressions.
-- Domains, senders and OAuth have no v1 endpoints.
+- Domains, senders and OAuth have no v1 endpoints. Neither does the automation canvas: flows are built in the app.

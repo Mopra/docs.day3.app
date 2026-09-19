@@ -13,6 +13,7 @@ const meta = {
   segments: { title: "Segments" },
   topics: { title: "Topics" },
   campaigns: { title: "Campaigns" },
+  automations: { title: "Automations" },
   suppressions: { title: "Suppressions" },
 
   "--integrations": { type: "separator", title: "Integrations" },

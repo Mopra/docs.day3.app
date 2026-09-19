@@ -135,8 +135,8 @@ shown in the app, so a mistaken import is attributable rather than anonymous.
 **API writes are add-only.** There is no `DELETE /v1/suppressions/{email}`.
 </Callout>
 
-Un-suppression is a deliberate act done in the app, on the **Suppressions** page,
-per address, with the reason and source visible. Two reasons for that asymmetry:
+Un-suppression is a deliberate act done in the app, on the **Suppressions** tab
+of **Audiences**, per address, with the reason and source visible. Two reasons for that asymmetry:
 
 - A scripting mistake stays recoverable, but cannot be script-reverted in bulk.
 - A compromised API key cannot un-suppress bounced addresses in order to

@@ -78,7 +78,7 @@ Plain paragraphs, **bold**, *italic*, `code`, [links](https://example.com)
 [Label](https://x.com){.button}            a call-to-action button
     options: {.button bg=#2563eb color=#ffffff full align=left}
 > A quote                                  a callout box
-> Attribution                              optional attribution line
+> -- Attribution                           optional attribution line
 :::spacer 48:::                            blank vertical space, in pixels
 
 :::columns                                 two or three side-by-side columns
@@ -104,8 +104,20 @@ Text beside the image.
 Anything above.
 :::
 
+:::html                                    raw HTML, sanitized on the way in
+<table><tr><td>Anything the blocks
+above cannot express.</td></tr></table>
+:::
+
 ===                                        force a split between two text blocks
 ```
+
+The attribution line inside a quote must start with `--` (or an en or em dash).
+A plain line is read as more of the quote.
+
+`:::html` is the escape hatch, and it costs you something: it goes in as one
+opaque block, so a human cannot edit it in the composer the way they can edit
+everything else. Reach for it last.
 
 Images must be absolute `https` URLs that are already hosted publicly. The API
 cannot upload files.
@@ -240,5 +252,13 @@ safe.
 ## Sandbox mode
 
 On a free plan a campaign send is real but reaches only members of your own
-organization, and the campaign carries `"sandbox": true`. The allowance is shared
-with API and test sends. See [Authentication](/authentication).
+organization, and the campaign carries `"sandbox": true`. The allowance is 100
+emails a month, shared with API and test sends. See
+[Authentication](/authentication).
+
+## Sending a series instead
+
+A campaign is one email to a whole audience at one moment. A welcome series, a
+trial drip or an onboarding sequence is an [automation](/automations): built on
+the canvas in the app, and enrolled into one contact at a time from your own
+backend.

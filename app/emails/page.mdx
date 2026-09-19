@@ -25,6 +25,7 @@ needs its base URL, key and `from` changed.
   "from": "Acme <noreply@yourdomain.com>",
   "to": ["jane@acme.com"],
   "reply_to": null,
+  "list_unsubscribe": null,
   "subject": "Reset your password",
   "status": "delivered",
   "error": null,
@@ -101,11 +102,48 @@ twice is a support ticket. See [Idempotency](/conventions).
 
 ### `from` must be on a verified domain
 
-Verify the domain in the app under **Domains**. After that, any local part works
+Verify the domain in the app under **Sending**. After that, any local part works
 without pre-creating a sender: `noreply@`, `receipts@`, `billing@`.
 
 An unverified domain is `403 domain_not_verified`. Verify it rather than
 retrying.
+
+### The day3 test address
+
+Every new organization is given one pre-verified address on a day3-owned domain,
+so your first API send needs no DNS at all. It looks like this:
+
+```
+acme@sandbox.day3.app
+```
+
+The local part comes from your organization name. The exact address is shown in
+the app under **Sending**, on the card above the domain list.
+
+<Callout type="warning">
+A send from the test address must be a **sandbox** send. It therefore works
+while your account is in sandbox mode, to members of your own organization, and
+it stops working the moment you upgrade. Anything else is
+`403 domain_not_verified` with a message saying so, including a send to your own
+teammate once you are on a paid plan.
+</Callout>
+
+That rule is the whole basis of the address. It sits on a sending identity
+shared by every day3 account, so its reputation is not yours alone to spend.
+Sandbox already restricts recipients to people who asked for the mail and caps
+the volume, so the address is allowed exactly as far as those limits reach and
+no further. The check fails closed: anything it cannot prove is a sandbox send
+is refused.
+
+Two more consequences worth knowing before you build on it:
+
+- The footer carries **day3's** postal address, not yours, because the mail
+  leaves our domain.
+- It does not count as your verified domain anywhere in the app. Ticking that
+  step would retire the one piece of setup that lets you reach real subscribers.
+
+So use it to get an integration working on day one, and verify your own domain
+before you upgrade. The only code change is `from`.
 
 ### Multiple recipients
 
@@ -214,7 +252,7 @@ Upgrading lifts both with no code change. See
 | 400 | `invalid_request` | Missing required field, a reserved header, or over a size limit. |
 | 400 | `invalid_email` | An address is not valid. |
 | 400 | `email_suppressed` | The address hard-bounced, complained, or is provider-suppressed. |
-| 403 | `domain_not_verified` | The `from` domain is not verified. |
+| 403 | `domain_not_verified` | The `from` domain is not verified, or it is the test address on a send that is not a sandbox send. |
 | 403 | `sandbox_recipient_not_allowed` | Free plan, recipient outside the organization. |
 | 403 | `plan_limit_reached` | Monthly send allowance exhausted. |
 | 403 | `sending_disabled` | Sending is off for this account. |

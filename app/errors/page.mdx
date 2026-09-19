@@ -30,7 +30,7 @@ Every failure uses one envelope:
 | --- | --- | --- |
 | 400 | `invalid_request` | Malformed body, or a value that failed validation. |
 | 400 | `invalid_email` | The address is not a valid email. |
-| 400 | `invalid_filter` | A segment filter is malformed. The message names the offending condition index. |
+| 400 | `invalid_filter` | A **stored** segment filter no longer parses, so its members cannot be listed. A filter rejected on write is `invalid_request`. |
 | 400 | `batch_too_large` | More than 1,000 items in one batch. |
 | 400 | `email_suppressed` | On `POST /emails`: the address hard-bounced, complained, or was suppressed by the provider. |
 | 401 | `invalid_api_key` | Missing, malformed, or unknown key. |
@@ -39,13 +39,14 @@ Every failure uses one envelope:
 | 403 | `sending_disabled` | Sending is turned off for this account. |
 | 403 | `domain_not_verified` | The `from` domain is not a verified sending domain. |
 | 403 | `sandbox_recipient_not_allowed` | Free plan, and the recipient is not a member of your organization. |
-| 403 | `insufficient_scope` | The key lacks `campaigns:send` or `webhooks:manage`. |
+| 403 | `insufficient_scope` | The key lacks `campaigns:send`, `automations:enroll` or `webhooks:manage`. |
 | 403 | `test_keys_not_supported` | A `day3_test_` key was used. |
 | 403 | `forbidden` | The action is not allowed for this key or account state. |
 | 404 | `not_found` | No such object. Also returned for another organization's ids. |
 | 409 | `contact_already_exists` | Creating a contact whose email is already in the audience, without `?upsert=true`. |
 | 409 | `email_suppressed` | On contact writes: the address is on the account's suppression list. |
 | 409 | `idempotency_conflict` | Same `Idempotency-Key`, different body. Or the same key is already in flight. |
+| 409 | `invalid_request` | The action conflicts with the object's state: editing a campaign that has left `draft`, or enrolling into an unpublished automation. |
 | 422 | `immutable_field` | Changing something that cannot change, such as a field's `key`. |
 | 429 | `rate_limit_exceeded` | Over the request limit. Carries `Retry-After`. |
 | 500 | `internal_error` | Our fault. Retry, and send us the `request_id`. |
@@ -62,7 +63,8 @@ Every failure uses one envelope:
 | `email_suppressed` | Never. The address bounced or complained. Retrying it damages your sending reputation. |
 | `sandbox_recipient_not_allowed` | No. Upgrade, or send to an organization member. |
 | `insufficient_scope` | No. Mint a key that has the scope. |
-| `invalid_request`, `invalid_email`, `invalid_filter` | No. Fix the payload. |
+| `invalid_request`, `invalid_email` | No. Fix the payload. `param` names the field. |
+| `invalid_filter` | No. Rewrite the segment's filter in the app or over the API. |
 
 ## Why `email_suppressed` appears twice
 

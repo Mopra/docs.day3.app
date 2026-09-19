@@ -57,22 +57,23 @@ The base grant is deliberately wide. A key with no scopes at all can read and
 write content: audiences, contacts, fields, segments, topics, campaign drafts,
 and transactional sends.
 
-Two actions sit outside that, because their blast radius reaches beyond the
+Three actions sit outside that, because their blast radius reaches beyond the
 account and cannot be undone:
 
 | Scope | Unlocks |
 | --- | --- |
 | `campaigns:send` | `POST /campaigns/{id}/send` and `POST /campaigns/{id}/schedule`. |
+| `automations:enroll` | `POST /automations/{id}/enroll`. |
 | `webhooks:manage` | Every `/webhooks` route, reads included. |
 
-Both are off by default and chosen at key creation. **A scope cannot be added to
-an existing key.** You mint a new one, which keeps the grant visible in the key
-list instead of buried in an edit history.
+All three are off by default and chosen at key creation. **A scope cannot be
+added to an existing key.** You mint a new one, which keeps the grant visible in
+the key list instead of buried in an edit history.
 
 Missing scope returns `403 insufficient_scope`. Do not work around it: the fix
 is a new key.
 
-Why these two:
+Why these three:
 
 - **Sending to an audience** matters more for an AI agent than for a script. A
   script does what its author wrote; an agent holding the same key decides for
@@ -80,6 +81,11 @@ Why these two:
   default. Test sends are deliberately *not* scoped, because they only reach
   addresses the caller names and they are the whole point of letting an agent
   iterate on an email.
+- **Enrolling someone in an automation** is the same decision spread over
+  time. One call promises that person every email in the flow, on the flow's own
+  schedule, with no further call from the key holder. Listing automations is
+  unscoped, because it names flows, not people. See
+  [Automations](/automations).
 - **A webhook endpoint** is a standing feed of every address you mail, pushed to
   a URL of the caller's choosing. That makes endpoint creation the one write in
   the API that is an exfiltration primitive rather than a content edit. Reads
@@ -92,14 +98,20 @@ A free organization has full API access, with two limits on sending:
 
 - Recipients must be members of your own organization. Anyone else is
   `403 sandbox_recipient_not_allowed`.
-- There is a small monthly allowance. Exhausting it is
+- The allowance is **100 emails a month**. Exhausting it is
   `403 plan_limit_reached`.
 
 Sends that go out this way are real email, and responses carry
-`"sandbox": true`. The allowance is shared with the app's own sandbox sends, so
-campaigns, test sends and API sends all draw from one monthly pool.
+`"sandbox": true`. That one allowance covers every surface, so campaign sends,
+test sends and API sends all draw from the same monthly pool. There is exactly
+one meter in the product, and it counts emails.
 
-Upgrading lifts both restrictions with no code change.
+Upgrading lifts both restrictions with no code change. An integration written
+against sandbox mode is already the production integration.
+
+You do not need your own verified domain to try this: a new organization is
+given a [day3 test address](/emails#the-day3-test-address) that sends to your
+own team out of the box.
 
 Free plans also cap the list at 500 subscribers. Contact writes that would cross
 that return `403 plan_limit_reached`, and a batch is rejected whole rather than

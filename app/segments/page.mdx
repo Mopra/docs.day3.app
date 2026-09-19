@@ -66,14 +66,23 @@ numeric one.
 New operators may be added over time. That is additive and non-breaking: nothing
 is ever removed.
 
-A malformed filter is `400 invalid_filter`, and the message names the offending
-condition index.
+A filter rejected on write is `400 invalid_request`, and `param` names the exact
+path that failed, such as `filter.conditions.0.value`. The separate
+`invalid_filter` code belongs to the read side: it means a *stored* filter no
+longer parses, so listing that segment's members fails rather than quietly
+matching everyone.
 
-<Callout type="info">
-Attribute values are stored as strings, so `greater_than` on a `number` field
-compares numerically while the stored value is still `"5"`. Give the filter a
-numeric `value`, not a quoted one.
+<Callout type="warning">
+**`value` is always a JSON string**, including for `greater_than` and
+`less_than`. Send `"value": "5"`, never `"value": 5`: a bare number fails
+validation with `400 invalid_request`. The comparison itself is numeric, so
+`"5"` and `"40"` order correctly, and a row whose stored value is not a number
+simply does not match.
 </Callout>
+
+A missing attribute is treated as an empty value, so `plan not_equals pro`
+includes contacts with no `plan` at all. That is usually what a human means by
+it, and it is worth knowing before you use a segment to target a send.
 
 ## List segments
 

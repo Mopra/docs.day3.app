@@ -1,0 +1,200 @@
+---
+title: Automations
+description: Enroll a contact in a published flow from your own backend, so a lifecycle event in your app starts a series of emails in day3.
+---
+
+import { Endpoint } from "@/components/endpoint";
+import { Callout } from "nextra/components";
+
+# Automations
+
+An automation is a published flow a contact runs through: a welcome series, an
+onboarding sequence, a win-back. You build it on the canvas in the app, where the
+steps, the waits and the emails live. The API does the one part that belongs in
+your code: **deciding who enters, and when.**
+
+That split is worth understanding before you write against this. The flow is
+content and timing, which a human edits. The enrollment is an event in your
+product, which only your backend knows about. So there are two endpoints here,
+not forty.
+
+```
+trial started  ->  POST /automations/{id}/enroll  ->  day3 sends the whole series
+```
+
+## The Automation object
+
+```json
+{
+  "id": "aut_9x4v0dz1k2m7",
+  "object": "automation",
+  "name": "Trial onboarding",
+  "status": "active",
+  "trigger": "api",
+  "audience_id": "aud_7k2m9x4v0dz1",
+  "live_version": 3,
+  "sandbox": false,
+  "created_at": "2026-09-01T09:00:00.000Z",
+  "updated_at": "2026-09-08T11:20:00.000Z"
+}
+```
+
+| Field | Notes |
+| --- | --- |
+| `status` | `draft`, `active`, `paused` or `archived`. |
+| `trigger` | `audience_join` if the flow also fires on its own as people join the audience, or `api` if only enrolling starts it. |
+| `audience_id` | The audience the flow runs over. A contact must already be in it, or be created by the same call. |
+| `live_version` | The published version number, or `null` if it has never been published. |
+| `sandbox` | `true` when the flow will only mail members of your own organization. Re-stamped on every publish, so it follows your plan. |
+
+<Callout type="info">
+`live_version` is `null` on a draft. A draft cannot be enrolled into, because
+there is nothing published to run.
+</Callout>
+
+## List automations
+
+<Endpoint method="GET" path="/v1/automations" />
+
+Newest first, cursor-paginated. Needs no scope: it names flows, not people.
+
+| Param | Notes |
+| --- | --- |
+| `status` | `draft`, `active`, `paused` or `archived`. Archived are hidden unless you ask for them. |
+| `limit`, `after` | Standard [pagination](/conventions). |
+
+An unrecognised `status` is `400 invalid_request` rather than an empty list, so a
+typo tells you it was a typo.
+
+```bash
+curl "https://go.day3.app/api/v1/automations?status=active" \
+  -H "Authorization: Bearer $DAY3_API_KEY"
+```
+
+## Enroll a contact
+
+<Endpoint method="POST" path="/v1/automations/{automation_id}/enroll" scope="automations:enroll" />
+
+Puts one person into the flow. From that moment day3 sends them every email in
+it, on the flow's own schedule, with no further call from you.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `email` | string | Yes | Canonicalized, meaning trimmed and lowercased, before anything else. |
+| `attributes` | object | No | Flat string to string. Creates the contact if it is not in the audience yet, and merges into it if it is. |
+
+```bash
+curl -X POST https://go.day3.app/api/v1/automations/aut_9x4v0dz1k2m7/enroll \
+  -H "Authorization: Bearer $DAY3_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: trial-start-user-8412" \
+  -d '{
+        "email": "jane@acme.com",
+        "attributes": { "plan": "trial", "company": "Acme" }
+      }'
+```
+
+```json
+{
+  "object": "enrollment_result",
+  "outcome": "enrolled",
+  "enrollment_id": "aen_4v0dz1k9x2m7"
+}
+```
+
+### `attributes` decides whether a stranger is created
+
+This is the one design decision in the endpoint, and it is deliberate:
+
+- **With `attributes`**, an unknown address is created in the flow's audience as
+  `subscribed`, then enrolled. Same rules as [Contacts](/contacts): values must
+  be strings, unknown keys register themselves as [fields](/fields), a `null`
+  deletes a key, and the merge is shallow.
+- **Without `attributes`**, an unknown address comes back as `not_subscribed`.
+  Nothing is created and nothing is sent.
+
+So enrolling can never quietly grow a list by accident. Send `attributes`, even
+an empty object, when you mean "create this person if they are new".
+
+### Outcomes
+
+The call returns `200` whenever it was understood. **Only `enrolled` started a
+run.** Every other outcome names the gate that refused, in the same vocabulary
+the app uses.
+
+| `outcome` | What happened |
+| --- | --- |
+| `enrolled` | A run started. `enrollment_id` is set. |
+| `already_enrolled` | The flow's re-entry rule says this person is already in it. |
+| `not_subscribed` | Not in the audience, or not in `subscribed` status. Unsubscribed, bounced and pending contacts are all refused here. |
+| `suppressed` | The address is on the account's [suppression list](/suppressions). |
+| `entry_filter_no_match` | The flow has an entry filter and this contact does not match it. |
+| `sandbox_not_member` | The flow is in sandbox mode and this address is not a member of your organization. |
+| `wrong_audience` | The contact exists, but in a different audience than the flow. |
+| `automation_not_active` | The published version is unusable. Rare, and worth reporting. |
+
+Branch on `outcome`. Treating a `200` as success is the mistake this shape exists
+to prevent.
+
+<Callout type="info">
+Always send `Idempotency-Key`. A lifecycle event that fires twice is the normal
+case, not the exception, and a duplicate enrollment means somebody gets the whole
+series twice. See [Idempotency](/conventions).
+</Callout>
+
+### A paused flow still accepts enrollments
+
+Enrolling into a `paused` automation succeeds, and the person waits at the
+trigger. Resuming releases them.
+
+That is deliberate. Pausing for an hour to fix a typo must not silently drop
+every signup in that hour: a late welcome email is recoverable, a missing one is
+not.
+
+A `draft` or `archived` automation is `409 invalid_request` instead, because
+there is no published version to run.
+
+## Why this needs a scope
+
+<Callout type="warning">
+`POST /automations/{id}/enroll` requires a key with the `automations:enroll`
+scope. It is off by default and cannot be added to an existing key. Without it
+you get `403 insufficient_scope`, and the fix is to mint a new key.
+</Callout>
+
+Same reasoning as [`campaigns:send`](/campaigns): it puts mail in a stranger's
+inbox. An enrollment is a standing promise to send that contact every email in
+the flow, on the flow's schedule, with no further call from the key holder. That
+is a larger commitment than a single send, not a smaller one.
+
+Listing automations is unscoped, because a list of flow names reaches nobody.
+
+## Errors
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| 400 | `invalid_email` | The address is not valid. |
+| 400 | `invalid_request` | An unknown `status` filter, or an `attributes` value that is not a string. |
+| 403 | `insufficient_scope` | The key lacks `automations:enroll`. |
+| 404 | `not_found` | No such automation on this account. |
+| 409 | `invalid_request` | The automation is a draft or archived. Publish it first. |
+| 409 | `email_suppressed` | Creating the contact was refused, because the address is suppressed. |
+
+Note the difference between `409 email_suppressed` and the `suppressed` outcome.
+The first is the contact write being refused, which can only happen when you sent
+`attributes`. The second is a `200` saying the contact exists and was not
+enrolled. Both mean the same thing about the address.
+
+## From an AI editor
+
+The same two operations are exposed over [MCP](/mcp) as `day3_list_automations`
+and `day3_enroll_in_automation`, with the same scope rule on the enroll tool.
+
+## What is not here
+
+The canvas itself. Creating flows, editing nodes, wait steps, entry filters,
+re-entry rules and the enrollment browser are all app-only, and an automation's
+statistics are read in the app rather than over v1.
+
+If you need one of those from code, it does not exist yet rather than being
+undocumented.

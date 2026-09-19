@@ -5,8 +5,8 @@ description: From nothing to a delivered transactional email in three steps.
 
 # Quickstart
 
-Three steps to a delivered email. You need a day3 account and a verified sending
-domain.
+Three steps to a delivered email. For the first one you need a day3 account and
+nothing else.
 
 ## 1. Mint a key
 
@@ -34,11 +34,11 @@ curl https://go.day3.app/api/v1/audiences \
 A `200` with a `data` array means the key is live. A `401 invalid_api_key` means
 it was mistyped or revoked.
 
-## 3. Verify a domain, then send
+## 3. Send
 
-Sending needs a verified sending domain, which is set up in the app under
-**Domains**. Once it is verified, any local part on it works without
-pre-creating a sender: `noreply@`, `receipts@`, `hello@`.
+Every new organization is given a **test address** on a day3-owned domain, so
+your first send needs no DNS setup at all. Find it in the app under **Sending**,
+on the card above the domain list. It looks like `acme@sandbox.day3.app`.
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/emails \
@@ -46,12 +46,17 @@ curl -X POST https://go.day3.app/api/v1/emails \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
-        "from": "Acme <noreply@yourdomain.com>",
+        "from": "Acme <acme@sandbox.day3.app>",
         "to": ["you@example.com"],
         "subject": "Hello from day3",
         "html": "<p>It works.</p>"
       }'
 ```
+
+Send it to yourself. The test address reaches **members of your own
+organization** and nobody else, because its sending reputation is shared with
+every other day3 account. Full rules on
+[Emails](/emails#the-day3-test-address).
 
 The response is the [Email object](/emails) with `status: "queued"`. Delivery is
 asynchronous and normally lands within seconds:
@@ -60,11 +65,11 @@ asynchronous and normally lands within seconds:
 {
   "id": "eml_0dz4k9x2v7q1",
   "object": "email",
-  "from": "Acme <noreply@yourdomain.com>",
+  "from": "Acme <acme@sandbox.day3.app>",
   "to": ["you@example.com"],
   "subject": "Hello from day3",
   "status": "queued",
-  "sandbox": false,
+  "sandbox": true,
   "created_at": "2026-08-21T09:00:00.000Z",
   "sent_at": null,
   "delivered_at": null
@@ -74,15 +79,32 @@ asynchronous and normally lands within seconds:
 Poll `GET /emails/{id}` to watch it walk to `delivered`, or take
 [webhooks](/webhooks) so day3 tells you instead.
 
+### Then verify your own domain
+
+To reach anyone outside your organization you need a sending domain of your own,
+set up in the app under **Sending**. Once it is verified, any local part on it
+works without pre-creating a sender: `noreply@`, `receipts@`, `hello@`.
+
+```json
+"from": "Acme <noreply@yourdomain.com>"
+```
+
+That is the only line that changes. An unverified domain is
+`403 domain_not_verified`, so verify it rather than retrying.
+
 ## On a free plan
 
-You can still do all of this. A free organization sends in **sandbox mode**:
+You can do all of this on a free organization, which sends in **sandbox mode**:
 real email, but only to addresses belonging to members of your own organization,
-on a small monthly allowance. Responses carry `"sandbox": true`.
+and 100 emails a month. Responses carry `"sandbox": true`.
 
 Anyone else is `403 sandbox_recipient_not_allowed`. Upgrading lifts both limits
 with no code change, so an integration written against sandbox mode is already
 the production integration.
+
+One thing does change on upgrade: the test address stops working, because it is
+only ever allowed to carry sandbox mail. Verify your own domain before you
+upgrade and the switch is one line.
 
 ## Where to go next
 
@@ -92,3 +114,4 @@ the production integration.
   ten minutes before you write an import script.
 - [Migrate a list](/guides/migrate-a-list) if you are moving off another
   provider.
+- [Automations](/automations) to start a welcome series from your own backend.

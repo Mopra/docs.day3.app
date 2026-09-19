@@ -17,8 +17,9 @@ There are two things it does:
   suppressions, built so that moving a list off another provider is a short
   script rather than a project.
 
-Campaigns can also be drafted, previewed, tested and sent over the API, and the
-same surface is exposed to AI editors through an [MCP server](/mcp).
+Campaigns can also be drafted, previewed, tested and sent over the API,
+automations can be enrolled into from your own backend, and the same surface is
+exposed to AI editors through an [MCP server](/mcp).
 
 ## Base URL
 
@@ -48,6 +49,7 @@ If that returns a JSON object with a `data` array, you are done setting up. The
 | Keep your users in sync with an audience | [Contacts](/contacts) |
 | Know when mail bounces, without polling | [Webhooks](/webhooks) |
 | Write and send a newsletter from code | [Campaigns](/campaigns) |
+| Start a welcome series when someone signs up | [Automations](/automations) |
 | Let Claude Code or Cursor draft an email | [MCP server](/mcp) |
 
 Read [Conventions](/conventions) once. Pagination, idempotency, ids and rate
@@ -65,10 +67,14 @@ page.
 | Segment | `seg_` | A saved filter, evaluated live at read time. |
 | Topic | `top_` | A subscription category a contact can opt out of on its own. |
 | Campaign | `cmp_` | A newsletter: one email to a whole audience. |
+| Automation | `aut_` | A published flow a contact runs through, one step at a time. |
 | Suppression | `sup_` | An account-wide "never email this address" entry. |
 
 ## Not in v1
 
-Domains, senders and OAuth have no endpoints. Verify a sending domain in the app
-under **Domains** before your first send. If you are writing against the API and
-need one of these, it does not exist yet rather than being undocumented.
+Domains, senders and OAuth have no endpoints, and neither does the automation
+canvas: flows are built in the app and only enrolled into from code. Verify a
+sending domain in the app under **Sending** before you mail real subscribers.
+
+If you are writing against the API and need one of these, it does not exist yet
+rather than being undocumented.

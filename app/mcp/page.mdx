@@ -8,9 +8,9 @@ import { Callout, Tabs } from "nextra/components";
 # MCP server
 
 day3 runs a Model Context Protocol server, so an AI editor can work with your
-campaigns directly. The draft lands in day3 as **editable composer blocks**
-rather than opaque HTML, so what the assistant writes is still yours to edit by
-hand.
+campaigns and automations directly. A draft lands in day3 as **editable composer
+blocks** rather than opaque HTML, so what the assistant writes is still yours to
+edit by hand.
 
 ```
 https://go.day3.app/api/mcp
@@ -102,11 +102,14 @@ matters because this one usually gets committed.
 | `day3_send_test` | Send to addresses the caller names. Never the audience. |
 | `day3_send_campaign` | Send to the whole audience. Needs `campaigns:send`. |
 | `day3_schedule_campaign` | Schedule a send. Needs `campaigns:send`. |
+| `day3_list_automations` | List [automations](/automations), with status and trigger. |
+| `day3_enroll_in_automation` | Put one person into a flow. Needs `automations:enroll`. |
 
 ## Sending is off by default
 
 `day3_send_campaign` and `day3_schedule_campaign` require a key with the
-`campaigns:send` scope, which is off unless you explicitly enabled it when
+`campaigns:send` scope, and `day3_enroll_in_automation` requires
+`automations:enroll`. Both are off unless you explicitly enabled them when
 minting the key.
 
 <Callout type="info">
@@ -114,6 +117,10 @@ This matters more for an agent than for a script. A script does what its author
 wrote. An agent holding the same key decides for itself, and "email everyone on
 the list" is not a decision to hand over by default.
 </Callout>
+
+Enrolling is scoped by the same test: it puts mail in a stranger's inbox, and
+one call promises them every email in the flow. Listing automations is not
+scoped, because it names flows rather than people.
 
 `day3_send_test` is deliberately **not** scoped. It only reaches addresses the
 caller names, it is capped and rate-limited, and it is the whole point of letting

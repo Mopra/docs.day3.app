@@ -47,7 +47,7 @@ indexed" bucket instead of ranking.
 | --- | --- |
 | `app/page.mdx` | Introduction |
 | `app/quickstart`, `app/authentication`, `app/conventions`, `app/errors` | The things that apply everywhere |
-| `app/emails` … `app/suppressions` | One page per resource |
+| `app/emails` … `app/suppressions` | One page per resource, including `app/automations` |
 | `app/webhooks`, `app/mcp` | Integrations |
 | `app/guides` | Task-shaped walkthroughs |
 
@@ -64,6 +64,9 @@ of truth:
 | `docs/api-v1-spec.md` | Design rationale. Parts of §1 are stale: it predates scopes. |
 | `docs/webhooks.md` | Receiver contract and the signature algorithm. |
 | `src/mcp/tools.ts` | The MCP tool list. |
+| `src/lib/plans-catalog.ts` | Plan limits: the free tier's 500-subscriber cap and the 100-email sandbox allowance. |
+| `src/lib/segment-filter-schema.ts` | Segment operators, and the rule that every `value` is a string. |
+| `src/services/shared-domain.ts` | The day3 test address, and the rule that it only ever carries sandbox mail. |
 
 When the API changes, re-read the serializers and `api-docs.ts` rather than
 trusting the spec document.

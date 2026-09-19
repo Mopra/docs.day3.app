@@ -11,8 +11,10 @@ import { Callout } from "nextra/components";
 An audience is a list of contacts. Everything else in the list model lives inside
 one: contacts, custom fields, segments and topics are all scoped to an audience.
 
-Subscribers are unlimited on every plan. You are billed on emails sent, so
-holding a large audience costs nothing.
+Subscribers are unlimited on every paid plan. You are billed on emails sent,
+so holding a large audience costs nothing. The free plan is the one exception:
+it caps an account at 500 subscribers, and a contact write that would cross that
+is `403 plan_limit_reached`.
 
 ## The Audience object
 
