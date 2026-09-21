@@ -70,11 +70,9 @@ page.
 | Automation | `aut_` | A published flow a contact runs through, one step at a time. |
 | Suppression | `sup_` | An account-wide "never email this address" entry. |
 
-## Not in v1
+## Set up in the app
 
-Domains, senders and OAuth have no endpoints, and neither does the automation
-canvas: flows are built in the app and only enrolled into from code. Verify a
-sending domain in the app under **Sending** before you mail real subscribers.
-
-If you are writing against the API and need one of these, it does not exist yet
-rather than being undocumented.
+Sending domains, senders and OAuth clients are configured in the app rather than
+over the API, and automation flows are built on the canvas in the app and only
+enrolled into from code. Verify a sending domain under **Sending** before you
+mail real subscribers.

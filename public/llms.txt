@@ -10,7 +10,7 @@
 
 ## Start here
 
-- [Introduction](https://docs.day3.app/): what the API does, the object list, and what is not in v1
+- [Introduction](https://docs.day3.app/): what the API does, the object list, and what is set up in the app
 - [Quickstart](https://docs.day3.app/quickstart): key, verification request, first send with no DNS setup
 - [Authentication](https://docs.day3.app/authentication): key format, the three scopes, sandbox mode on free plans
 - [Conventions](https://docs.day3.app/conventions): pagination, idempotency, rate limits, and the silently-dropped-fields trap
