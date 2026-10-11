@@ -8,13 +8,12 @@ import { Callout } from "nextra/components";
 
 # Audiences
 
-An audience is a list of contacts. Everything else in the list model lives inside
-one: contacts, custom fields, segments and topics are all scoped to an audience.
+An audience is a list. Contacts, fields, segments and topics all live inside
+one.
 
-Subscribers are unlimited on every paid plan. You are billed on emails sent,
-so holding a large audience costs nothing. The free plan is the one exception:
-it caps an account at 500 subscribers, and a contact write that would cross that
-is `403 plan_limit_reached`.
+Subscribers are unlimited on paid plans, because you pay per email sent. The
+free plan caps an account at 500; a contact write that would cross it is
+`403 plan_limit_reached`.
 
 ## The Audience object
 
@@ -33,14 +32,14 @@ is `403 plan_limit_reached`.
 }
 ```
 
-`contact_counts` appears on `GET /audiences/{id}` only. The list endpoint omits
-it, because it is a count query per row.
+`contact_counts` is only on `GET /audiences/{id}`. It costs a count query, so
+the list omits it.
 
 ## List audiences
 
 <Endpoint method="GET" path="/v1/audiences" />
 
-Cursor-paginated, newest first. No `contact_counts`.
+Newest first, [cursor-paginated](/conventions#pagination).
 
 ```bash
 curl https://go.day3.app/api/v1/audiences \
@@ -84,13 +83,13 @@ Returns `201` with the Audience object.
 
 <Endpoint method="GET" path="/v1/audiences/{audience_id}" />
 
-Includes `contact_counts`, broken down by status plus a `total`.
+Includes `contact_counts`: a count per status plus `total`.
 
 ## Update an audience
 
 <Endpoint method="PATCH" path="/v1/audiences/{audience_id}" />
 
-Renaming is the only change available.
+`name` is the only thing you can change.
 
 ```bash
 curl -X PATCH https://go.day3.app/api/v1/audiences/aud_7k2m9x4v0dz1 \
@@ -104,14 +103,13 @@ curl -X PATCH https://go.day3.app/api/v1/audiences/aud_7k2m9x4v0dz1 \
 <Endpoint method="DELETE" path="/v1/audiences/{audience_id}" />
 
 <Callout type="error">
-Deleting an audience also deletes **every contact, field, segment and topic
-inside it**. It is irreversible and there is no confirmation step. If you only
-want to stop mailing people, set their contacts to `unsubscribed` instead.
+Deletes **every contact, field, segment and topic inside it**. Irreversible, no
+confirmation step. To stop mailing people, set their contacts to `unsubscribed`
+instead.
 </Callout>
 
 ```json
 { "id": "aud_7k2m9x4v0dz1", "deleted": true }
 ```
 
-Account-wide suppression entries survive: they are not audience-scoped. See
-[Suppressions](/suppressions).
+[Suppressions](/suppressions) are account-wide and survive.

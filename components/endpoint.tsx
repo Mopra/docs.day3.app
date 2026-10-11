@@ -1,17 +1,36 @@
 import type { ReactNode } from "react";
+import { CopyButton } from "./copy-button";
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-// Tinted from the method tokens in globals.css rather than Tailwind's raw
-// palette, so a DELETE here is the same clay the site paints a destructive
-// action. Border and text share one colour at different alphas.
+const BASE = "https://go.day3.app/api";
+
+// Tinted from the method tokens in globals.css, so a DELETE here is the same
+// clay the site paints a destructive action.
 const methodClass: Record<Method, string> = {
-  GET: "text-[var(--method-get)] border-[var(--method-get)]/35 bg-[var(--method-get)]/8",
-  POST: "text-[var(--method-post)] border-[var(--method-post)]/35 bg-[var(--method-post)]/8",
-  PATCH: "text-[var(--method-patch)] border-[var(--method-patch)]/35 bg-[var(--method-patch)]/8",
-  PUT: "text-[var(--method-patch)] border-[var(--method-patch)]/35 bg-[var(--method-patch)]/8",
-  DELETE: "text-[var(--method-delete)] border-[var(--method-delete)]/35 bg-[var(--method-delete)]/8",
+  GET: "text-[var(--method-get)] bg-[var(--method-get)]/10",
+  POST: "text-[var(--method-post)] bg-[var(--method-post)]/12",
+  PATCH: "text-[var(--method-patch)] bg-[var(--method-patch)]/12",
+  PUT: "text-[var(--method-patch)] bg-[var(--method-patch)]/12",
+  DELETE: "text-[var(--method-delete)] bg-[var(--method-delete)]/12",
 };
+
+// `{email_id}` segments are the part a reader fills in, so they get the accent.
+function Path({ path }: { path: string }) {
+  return (
+    <>
+      {path.split(/(\{[^}]+\})/).map((part, i) =>
+        part.startsWith("{") ? (
+          <span key={i} className="text-[var(--link)]">
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 /**
  * The signature line for one operation. Sits directly under the heading that
@@ -31,22 +50,27 @@ export function Endpoint({
   children?: ReactNode;
 }) {
   return (
-    <div className="my-4 rounded-lg border border-[var(--border)] bg-[var(--card)] px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="d3-endpoint not-prose my-5 rounded-xl border border-[var(--border)] bg-[var(--card)]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2 pr-2 pl-2.5">
         <span
-          className={`shrink-0 rounded-md border px-2 py-0.5 font-mono text-xs font-semibold tracking-wide ${methodClass[method]}`}
+          className={`shrink-0 rounded-md px-2 py-1 font-mono text-[0.7rem] leading-none font-semibold tracking-wider ${methodClass[method]}`}
         >
           {method}
         </span>
-        <code className="font-mono text-sm break-all">{path}</code>
+        <code className="min-w-0 flex-1 font-mono text-[0.85rem] break-all text-[var(--foreground)]">
+          <Path path={path} />
+        </code>
         {scope ? (
-          <span className="ml-auto shrink-0 rounded-md border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted-foreground)]">
-            scope: <code className="font-mono">{scope}</code>
+          <span className="shrink-0 rounded-full border border-[var(--border)] px-2.5 py-0.5 text-[0.7rem] text-[var(--muted-foreground)]">
+            needs <code className="font-mono text-[var(--foreground)]">{scope}</code>
           </span>
         ) : null}
+        <CopyButton value={BASE + path} label="Copy URL" />
       </div>
       {children ? (
-        <div className="mt-2 text-sm text-[var(--muted-foreground)]">{children}</div>
+        <div className="border-t border-[var(--border)] px-3.5 py-2.5 text-sm text-[var(--muted-foreground)]">
+          {children}
+        </div>
       ) : null}
     </div>
   );

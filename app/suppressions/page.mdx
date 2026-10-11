@@ -8,23 +8,13 @@ import { Callout } from "nextra/components";
 
 # Suppressions
 
-A suppression is an account-wide "never email this address" entry. It is not
-audience-scoped: one entry stops mail to that address from every audience and
-from transactional sends.
+A suppression is an account-wide "never email this address" entry. One entry
+blocks the address in every audience and on transactional sends. It outranks a
+contact's status, a campaign's targeting, and a `POST /emails`.
 
-Suppression beats everything else. It outranks a contact's status, it outranks a
-campaign's targeting, and on `POST /emails` it outranks your intent to send.
-
-## Why you should import them
-
-If you are moving from another provider, importing their suppression list is the
-single most valuable thing you can do before your first send. Without it, your
-first campaign re-mails every address that already hard-bounced or complained
-somewhere else, and the receiving providers read that as exactly what it looks
-like.
-
-That protects day3's sending reputation as much as yours, which is why writes
-are allowed here at all.
+**Moving from another provider? Import its suppression list before your first
+send.** Otherwise your first campaign re-mails every address that already
+bounced or complained elsewhere, and receiving providers notice.
 
 ## The Suppression object
 
@@ -39,26 +29,22 @@ are allowed here at all.
 }
 ```
 
-| Reason | Meaning |
-| --- | --- |
-| `unsubscribed` | Opted out. |
-| `bounced` | Hard bounce. |
-| `complained` | Marked as spam. |
-| `manual` | Added by hand in the app. |
-| `provider_suppressed` | Suppressed by the mail provider itself. |
+| `reason` | Meaning | Writable over the API |
+| --- | --- | --- |
+| `unsubscribed` | Opted out. | Yes |
+| `bounced` | Hard bounce. | Yes |
+| `complained` | Marked as spam. | Yes |
+| `manual` | Added by hand in the app. | No |
+| `provider_suppressed` | Suppressed by the mail provider. | No |
 
-`source` records where the entry came from: `app` for the UI, or
-`api:<key id>` for an API write, so an accidental import is attributable and can
-be found again.
-
-Only `unsubscribed`, `bounced` and `complained` can be written over the API. The
-other two are set by day3.
+`source` is `app` for the UI or `api:<key id>` for an API write, so a bad import
+can be traced to its key.
 
 ## List suppressions
 
 <Endpoint method="GET" path="/v1/suppressions" />
 
-Cursor-paginated, newest first. Lists your account's own entries.
+Your account's own entries, newest first, cursor-paginated.
 
 ```bash
 curl "https://go.day3.app/api/v1/suppressions?limit=100" \
@@ -69,21 +55,16 @@ curl "https://go.day3.app/api/v1/suppressions?limit=100" \
 
 <Endpoint method="GET" path="/v1/suppressions/{email}" />
 
-`200` with the entry if the address is suppressed, `404` if it is not. The email
-is URL-encoded.
+`200` with the entry if suppressed, `404` if not. URL-encode the email. Use it
+to find out **why** a batch item failed with `email_suppressed`.
 
 ```bash
 curl https://go.day3.app/api/v1/suppressions/bounced%40example.com \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-This is how you find out **why** a batch item failed with `email_suppressed`.
-
-<Callout type="info">
-The single-address check also consults day3's global suppression entries, so it
-can return a `200` for an address that is not in your own list. The list
-endpoint shows only your account's entries.
-</Callout>
+This check also consults day3's global suppression entries, so it can return
+`200` for an address that is not in your list.
 
 ## Add suppressions
 
@@ -91,7 +72,7 @@ endpoint shows only your account's entries.
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `reason` | string | Yes | `unsubscribed`, `bounced` or `complained`. No default. |
+| `reason` | string | Yes | `unsubscribed`, `bounced` or `complained`. No default, so every entry is attributable. |
 | `emails` | string[] | Yes | Up to 1,000 per call. |
 
 ```bash
@@ -105,8 +86,7 @@ curl -X POST https://go.day3.app/api/v1/suppressions \
       }'
 ```
 
-The response echoes the blast radius, so a script or a human can sanity-check
-what just happened:
+The response shows the blast radius:
 
 ```json
 {
@@ -119,50 +99,40 @@ what just happened:
 ```
 
 <Callout type="warning">
-This is the API's biggest foot-gun. Posting the wrong file, for example a full
-contact export instead of a suppression export, silently makes your entire
-audience unmailable. Check `total_suppressed_after` against what you expected.
+The API's biggest foot-gun. Post a full contact export instead of a suppression
+export and your whole audience becomes unmailable, silently. Check
+`total_suppressed_after` against what you expected.
 </Callout>
 
-`reason` is required and has no default, on purpose: it is stored per entry and
-shown in the app, so a mistaken import is attributable rather than anonymous.
-
-`Idempotency-Key` is supported and worth setting on an import.
+`Idempotency-Key` is supported. Set it on imports.
 
 ## There is no delete
 
-<Callout type="error">
 **API writes are add-only.** There is no `DELETE /v1/suppressions/{email}`.
-</Callout>
 
-Un-suppression is a deliberate act done in the app, on the **Suppressions** tab
-of **Audiences**, per address, with the reason and source visible. Two reasons for that asymmetry:
+Un-suppress in the app, per address, under **Audiences** then **Suppressions**,
+with reason and source visible. A scripting mistake stays recoverable but cannot
+be bulk-reverted by script, and a leaked key cannot un-suppress bounced
+addresses to force-mail them.
 
-- A scripting mistake stays recoverable, but cannot be script-reverted in bulk.
-- A compromised API key cannot un-suppress bounced addresses in order to
-  force-mail them.
-
-Un-suppressing in the app also restores contacts marked `bounced`, `complained`
-or `suppressed` back to `subscribed`, and deliberately leaves self-service
-unsubscribes alone.
+Un-suppressing restores contacts marked `bounced`, `complained` or `suppressed`
+to `subscribed`. Self-service unsubscribes stay unsubscribed.
 
 ## Interaction with contacts
 
-Suppressing an address does **not** delete contact rows. Those contacts simply
-become unmailable, and creating a contact for a suppressed address returns
+Suppressing an address does **not** delete contact rows; they become
+unmailable. Creating a contact for a suppressed address returns
 `409 email_suppressed`.
 
-So if you import suppressions before contacts, which is the right order, expect
-those rows to fail on the way in. That is correct behaviour, not an error to
-retry. See [Migrate a list](/guides/migrate-a-list).
+Import suppressions before contacts, and expect those rows to fail on the way
+in. That is correct, not something to retry. See
+[Migrate a list](/guides/migrate-a-list).
 
 ## Interaction with transactional email
 
-Transactional sends treat suppression differently from campaigns:
-
 - An **unsubscribe** does not block a transactional send. A newsletter opt-out
   must never stop a password reset.
-- A **bounce, complaint or provider suppression** does block it, with
+- A **bounce, complaint or provider suppression** does, with
   `400 email_suppressed`.
 
 See [Emails](/emails).

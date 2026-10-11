@@ -9,30 +9,26 @@ import { Callout } from "nextra/components";
 
 The API lets your code call day3. Webhooks let day3 call your code.
 
-If you send through day3 and take no events, your app cannot know that an address
-hard-bounced. day3 stops mailing it, because the suppression list is enforced on
-our side, but *your* database still says the address is good. You keep showing
-"we sent you an email", keep retrying, and have no suppression state to reason
-about. `suppression.created` is the event that closes that gap.
+Without events your app never learns that an address hard-bounced. day3 stops
+mailing it, but your database still says it is good. `suppression.created`
+closes that gap.
 
-This page is for the person writing the receiver. To provision endpoints from
-code, see [Managing endpoints](/webhooks/endpoints).
+This page is for whoever writes the receiver. To provision endpoints from code,
+see [Managing endpoints](/webhooks/endpoints).
 
-## Setting one up
+## Set one up
 
 In the app: **API keys**, then **Webhooks**, then **Add endpoint**. Pick the
-events, save, and copy the signing secret.
+events, save, copy the signing secret. Unlike an API key, the secret can be
+revealed again later in the app.
 
-Unlike an API key, the signing secret **is** readable again later. It lives in
-your deploy config, and losing it should not mean an outage.
+Endpoint URLs must be public `https` on port 443 or 8443.
 
-Endpoint URLs must be public `https` on port 443 or 8443. Loopback addresses,
-private ranges and cloud-metadata addresses are refused, validated at the
-socket's own DNS lookup, so a hostname that re-resolves to a private address
-after you save it still will not be reached. Redirects are never followed, so
-configure the final URL.
-
-For local development, use a tunnel such as `ngrok http 3000`.
+- Loopback, private ranges and cloud-metadata addresses are refused. The check
+  runs at the socket's own DNS lookup, so a hostname that later re-resolves to a
+  private address is still blocked.
+- Redirects are never followed. Configure the final URL.
+- For local development, use a tunnel such as `ngrok http 3000`.
 
 ## The request
 
@@ -65,14 +61,13 @@ Day3-Signature: t=1755264000,v1=5f3a...
 ```
 
 `data.object` is `email` for transactional sends and `campaign_recipient` for
-newsletter sends. The campaign shape carries `campaign_id`, `recipient_id` and
-`contact_id` instead of `email_id` and `to`. Join on those if you need the
-campaign's name or subject: we do not inline them, because that would mean an
-extra read on every message we send.
+campaign sends. The campaign shape carries `campaign_id`, `recipient_id` and
+`contact_id` instead of `email_id` and `to`. The campaign's name and subject are
+not inlined; join on `campaign_id`.
 
-A transactional message can carry up to 50 recipients, and the provider reports
-per address, so you get one event per affected address, each with its own
-`data.email`, all sharing a `provider_message_id`.
+A transactional message can have up to 50 recipients. You get one event per
+affected address, each with its own `data.email`, sharing one
+`provider_message_id`.
 
 ## Events
 
@@ -80,20 +75,19 @@ per address, so you get one event per affected address, each with its own
 | --- | --- |
 | `email.sent` | Handed to the mail provider. Not yet delivered. |
 | `email.delivered` | The receiving server accepted it. |
-| `email.bounced` | Came back. Check `bounce_type`: `Permanent` and `Undetermined` suppress the address, `Transient` is informational. |
-| `email.complained` | Recipient marked it as spam. The address is suppressed. |
+| `email.bounced` | Came back. `bounce_type` `Permanent` and `Undetermined` suppress the address; `Transient` is informational. |
+| `email.complained` | Marked as spam. The address is suppressed. |
 | `email.failed` | Never left. `data.error` says why. |
-| `suppression.created` | An address was added to the suppression list. `data.reason` is one of `hard_bounce`, `complaint`, `unsubscribe`, `manual`, `provider_suppressed`. |
+| `suppression.created` | An address was suppressed. `data.reason` is `hard_bounce`, `complaint`, `unsubscribe`, `manual` or `provider_suppressed`. |
 
-## Verifying the signature
+## Verify the signature
 
-`Day3-Signature` is `t=<unix seconds>,v1=<hex>`, where the hex is **HMAC-SHA256**
-over the exact string `` `${t}.${rawBody}` ``, keyed with your endpoint's signing
-secret.
+`Day3-Signature` is `t=<unix seconds>,v1=<hex>`. The hex is **HMAC-SHA256** of
+`` `${t}.${rawBody}` ``, keyed with the endpoint's signing secret.
 
 <Callout type="error">
-Verify against the **raw request body**, before any JSON parsing. A framework
-that parses and re-serializes changes the bytes, and then every signature fails.
+Verify the **raw request body**, before JSON parsing. Parsing and re-serializing
+changes the bytes, and every signature fails.
 </Callout>
 
 ```ts
@@ -127,7 +121,7 @@ export function verifyDay3Signature(
 }
 ```
 
-In a Next.js route handler, `await req.text()` gives you the raw body:
+In a Next.js route handler, `await req.text()` is the raw body:
 
 ```ts
 export async function POST(req: Request) {
@@ -147,46 +141,36 @@ export async function POST(req: Request) {
 
 ## What your handler must do
 
-**Return 2xx quickly.** Any 2xx counts as delivered. We time out after 10
-seconds. Do the real work after responding, in a queue or a background job. A
-handler that processes inline will eventually time out under load and get
-retried, which is the failure mode retries are supposed to fix rather than cause.
+**Return 2xx fast.** Any 2xx counts as delivered. We time out after 10 seconds.
+Queue the real work and respond. Inline processing times out under load and
+gets retried.
 
-**Dedupe on `id`.** Delivery is at-least-once. In practice duplicates are rare:
-every event is emitted from inside the same database guard that makes the
-underlying write idempotent, so a provider redelivery or a retried job does not
-re-emit it. But a worker that crashes mid-POST is retried by design, and that is
-where you would see the same `id` twice. Storing processed event ids for a day or
-two is enough.
+**Dedupe on `id`.** Delivery is at-least-once. Duplicates are rare, but a worker
+that crashes mid-POST is retried by design. Keep processed ids for a day or two.
 
-**Do not assume ordering.** Events are delivered independently. A `delivered` and
-a `bounced` for the same message can arrive out of order. Trust the row you build
-from all of them, not the last one you saw.
+**Do not assume order.** Events are delivered independently, so `delivered` and
+`bounced` for one message can arrive in either order. Trust the state you build
+from all of them, not the last one.
 
 ## Retries
 
-Seven attempts: the first, then six retries at 30 seconds, 2 minutes, 10 minutes,
-30 minutes, 1 hour and 6 hours, spanning a little under eight hours.
+Seven attempts: the first, then retries after 30 seconds, 2 minutes, 10
+minutes, 30 minutes, 1 hour and 6 hours. A little under eight hours in total.
 
-Anything that is not 2xx is retried, including 3xx, because we do not follow
-redirects. `Day3-Delivery-Attempt` counts from 1.
+- Anything not 2xx is retried, including 3xx, since redirects are not followed.
+- `Day3-Delivery-Attempt` counts from 1.
+- After the last attempt the delivery is marked failed and stays in the log. Hit
+  **Resend** there to re-send the original payload; the signature still
+  verifies.
+- Failing endpoints are **never auto-disabled**. A silently disabled webhook
+  looks healthy while your data drifts. The endpoint list shows the failure
+  streak and last error instead.
+- Delivery rows are kept for 30 days.
 
-After the last attempt the delivery is marked failed and stays in the log, where
-you can hit **Resend**. That re-sends the original payload, so the signature
-still verifies.
+## Rotate the secret
 
-An endpoint that fails repeatedly is **not** auto-disabled. A silently disabled
-webhook looks healthy while your data quietly drifts out of sync, which is worse
-than a noisy failing one. The endpoint list shows the failure streak and the last
-error instead.
-
-Delivery rows are kept for 30 days.
-
-## Rotating the secret
-
-We sign with exactly one secret, so rotation is not automatically zero-downtime.
-This order is:
+We sign with one secret at a time. For zero downtime:
 
 1. Deploy a receiver that accepts **either** the old or the new secret.
-2. Rotate in the day3 UI, copy the new secret, deploy it.
+2. Rotate in the app, copy the new secret, deploy it.
 3. Drop the old secret from your config.

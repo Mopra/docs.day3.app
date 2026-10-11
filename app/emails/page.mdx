@@ -8,13 +8,11 @@ import { Callout } from "nextra/components";
 
 # Emails
 
-Transactional email: your app's password resets, receipts and magic links. They
-go out from the same verified domain and draw on the same monthly allowance as
-your campaigns, so there is no second provider and no second reputation to
-manage.
+Password resets, receipts, magic links. Same verified domain and same monthly
+allowance as your campaigns: one provider, one reputation.
 
-The request shape is Resend-compatible, so an existing integration usually only
-needs its base URL, key and `from` changed.
+The request shape is Resend-compatible. Migrating usually means changing the
+base URL, the key and `from`.
 
 ## The Email object
 
@@ -41,21 +39,21 @@ needs its base URL, key and `from` changed.
 
 ### Status
 
-`status` walks `queued` then `sent` then `delivered`, or ends at one of
-`bounced`, `complained`, `failed`, `suppressed`.
+`queued` → `sent` → `delivered`, or it ends at `bounced`, `complained`,
+`failed` or `suppressed`.
 
 | Status | Meaning |
 | --- | --- |
-| `queued` | Accepted and waiting for the worker. |
+| `queued` | Accepted, waiting for the worker. |
 | `sent` | Handed to the mail provider. Not yet delivered. |
 | `delivered` | The receiving server accepted it. |
 | `bounced` | Came back. The address may now be suppressed. |
-| `complained` | Marked as spam by the recipient. The address is suppressed. |
+| `complained` | Marked as spam. The address is suppressed. |
 | `failed` | Never left. `error` says why. |
-| `suppressed` | Blocked before sending, because the address is unmailable. |
+| `suppressed` | Blocked before sending: the address is unmailable. |
 
-Delivery is asynchronous. A transactional send is a top-priority worker job and
-never waits behind a campaign drain, so it normally completes in seconds.
+Delivery is asynchronous. Transactional sends are top-priority jobs and never
+wait behind a campaign, so they usually complete in seconds.
 
 ## Send an email
 
@@ -82,91 +80,78 @@ curl -X POST https://go.day3.app/api/v1/emails \
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `from` | string | Yes | A bare address or `"Name <addr>"`. The domain must be verified. |
-| `to` | string or string[] | Yes | Up to 50 addresses. See below. |
+| `from` | string | Yes | `addr` or `"Name <addr>"`. Domain must be verified. |
+| `to` | string or string[] | Yes | Up to 50 addresses. See [Multiple recipients](#multiple-recipients). |
 | `subject` | string | Yes | Control characters are rejected. |
 | `html` | string | One of | HTML body. |
 | `text` | string | One of | Plain-text body. Send both when you can. |
-| `reply_to` | string | No | Any address. Does not have to be on your domain. |
+| `reply_to` | string | No | Any address, on any domain. |
 | `headers` | object | No | Up to 20 custom headers. Reserved names are rejected. |
-| `tags` | object | No | Flat string map, for your own filtering. |
+| `tags` | object | No | Flat string map for your own filtering. |
 
-At least one of `html` or `text` is required.
-
-The response is the Email object with `status: "queued"`, returned as `200`.
+Send at least one of `html` or `text`. Returns `200` with the Email object,
+`status: "queued"`.
 
 <Callout type="info">
-Always set `Idempotency-Key` on a send. A retried password reset that sends
-twice is a support ticket. See [Idempotency](/conventions).
+Always set `Idempotency-Key`. A retried password reset that sends twice is a
+support ticket. See [Idempotency](/conventions#idempotency).
 </Callout>
 
 ### `from` must be on a verified domain
 
-Verify the domain in the app under **Sending**. After that, any local part works
-without pre-creating a sender: `noreply@`, `receipts@`, `billing@`.
+Verify the domain in the app under **Sending**. Then any local part works with
+no sender setup: `noreply@`, `receipts@`, `billing@`.
 
-An unverified domain is `403 domain_not_verified`. Verify it rather than
-retrying.
+An unverified domain is `403 domain_not_verified`. Verify it; don't retry.
 
 ### The day3 test address
 
-Every new organization is given one pre-verified address on a day3-owned domain,
-so your first API send needs no DNS at all. It looks like this:
+Every new organization gets one pre-verified address on a day3-owned domain, so
+your first send needs no DNS:
 
 ```
 acme@sandbox.day3.app
 ```
 
-The local part comes from your organization name. The exact address is shown in
-the app under **Sending**, on the card above the domain list.
+The local part comes from your organization name. Find the exact address in the
+app under **Sending**, on the card above the domain list.
 
 <Callout type="warning">
-A send from the test address must be a **sandbox** send. It therefore works
-while your account is in sandbox mode, to members of your own organization, and
-it stops working the moment you upgrade. Anything else is
-`403 domain_not_verified` with a message saying so, including a send to your own
-teammate once you are on a paid plan.
+A send from the test address must be a **sandbox** send: your account is in
+sandbox mode and every recipient is a member of your organization. It stops
+working the moment you upgrade. Anything else is `403 domain_not_verified` with
+a message saying so, including a send to a teammate on a paid plan.
 </Callout>
 
-That rule is the whole basis of the address. It sits on a sending identity
-shared by every day3 account, so its reputation is not yours alone to spend.
-Sandbox already restricts recipients to people who asked for the mail and caps
-the volume, so the address is allowed exactly as far as those limits reach and
-no further. The check fails closed: anything it cannot prove is a sandbox send
-is refused.
+The address shares a sending reputation with every day3 account, so it only
+reaches as far as sandbox limits do. The check fails closed: anything it can't
+prove is a sandbox send is refused.
 
-Two more consequences worth knowing before you build on it:
+- The footer carries **day3's** postal address, not yours.
+- It never counts as your verified domain in the app.
 
-- The footer carries **day3's** postal address, not yours, because the mail
-  leaves our domain.
-- It does not count as your verified domain anywhere in the app. Ticking that
-  step would retire the one piece of setup that lets you reach real subscribers.
-
-So use it to get an integration working on day one, and verify your own domain
-before you upgrade. The only code change is `from`.
+Use it to get working on day one. Verify your own domain before you upgrade;
+the only code change is `from`.
 
 ### Multiple recipients
 
-`to` accepts a string or an array of up to 50 addresses. An array is **one
-message whose To header lists them all**, not 50 separate emails. Everyone sees
-everyone.
+`to` takes a string or an array of up to 50 addresses. An array is **one
+message with every address in the To header**. Everyone sees everyone. For 50
+private emails, send 50 requests.
 
-Addresses are canonicalized, meaning trimmed and lowercased, then
-de-duplicated. Each surviving address counts against your monthly allowance.
-
-If you need 50 people not to see each other, send 50 requests.
+Addresses are trimmed, lowercased and de-duplicated. Each one left counts
+against your monthly allowance.
 
 ### Custom headers
 
-Up to 20. Anything day3 derives from the body or needs for delivery is
-rejected with `400`:
+Up to 20. These are rejected with `400`:
 
 - Body-derived: `From`, `To`, `Subject`, `Reply-To` and friends.
 - MIME plumbing.
-- Authentication and trace headers: `DKIM-Signature`,
-  `Authentication-Results`, `ARC-*`, `Received`, `Sender`, `Resent-*`.
+- Authentication and trace: `DKIM-Signature`, `Authentication-Results`,
+  `ARC-*`, `Received`, `Sender`, `Resent-*`.
 - The unsubscribe headers.
-- Our own `X-Account-ID` and `X-Transactional-Email-ID`.
+- day3's own `X-Account-ID` and `X-Transactional-Email-ID`.
 - Anything starting with `X-SES-`.
 
 ### Limits
@@ -175,19 +160,18 @@ rejected with `400`:
 | --- | --- |
 | Recipients per message | 50 |
 | Custom headers | 20 |
-| Total size of `html` + `text` + `headers` + `tags` | 1.5 MB of UTF-8 |
+| `html` + `text` + `headers` + `tags` | 1.5 MB of UTF-8 |
 | Rate | 120 sends per minute per organization |
 
-Control characters are rejected in `subject`, header values and addresses, and a
-display name may not contain `<`, `>`, `"` or `\`. That is header-injection
-defence, not style preference.
+Control characters are rejected in `subject`, header values and addresses. A
+display name can't contain `<`, `>`, `"` or `\`. Both are header-injection
+defence.
 
 ## Retrieve an email
 
 <Endpoint method="GET" path="/v1/emails/{email_id}" />
 
-Returns the Email object plus `events`, the delivery timeline fed by the
-provider:
+Returns the Email object plus `events`, the provider's delivery timeline:
 
 ```json
 {
@@ -201,16 +185,14 @@ provider:
 }
 ```
 
-<Callout type="warning">
 Bodies are pruned after 30 days. The metadata row is kept forever, and the API
 reports the content as expired rather than returning an empty string.
-</Callout>
 
 ## List emails
 
 <Endpoint method="GET" path="/v1/emails" />
 
-Newest first, cursor-paginated. Filter with
+Newest first, [cursor-paginated](/conventions#pagination). Filter with
 `?status=queued|sent|delivered|bounced|complained|failed|suppressed`.
 
 ```bash
@@ -218,24 +200,22 @@ curl "https://go.day3.app/api/v1/emails?status=bounced&limit=100" \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-## How suppression works here
+## Suppression
 
-Transactional mail deliberately follows different rules from campaigns:
+Transactional mail follows different rules from campaigns:
 
-- **An unsubscribe does not block a transactional send.** Opting out of a
-  newsletter must never stop a password reset arriving.
-- **A hard bounce, a complaint, or a provider suppression does block it**, with
-  `400 email_suppressed`. Do not retry: the address is unmailable and trying
-  again damages your reputation.
+- **Unsubscribes don't block it.** Leaving a newsletter must never stop a
+  password reset.
+- **Hard bounces, complaints and provider suppressions do**, with
+  `400 email_suppressed`. Don't retry. It damages your reputation.
 
-Bounces and complaints on transactional mail feed the suppression list and count
-towards the account's reputation auto-pause exactly like campaign sends do. This
-is not a separate reputation.
+Bounces and complaints here feed the same suppression list and the same
+reputation auto-pause as campaigns. There is no separate reputation.
 
 ## Sandbox mode
 
-On a free plan, sends are real but restricted to addresses of members of your own
-organization, on a small monthly allowance. Responses carry `"sandbox": true`.
+On a free plan, sends are real but only reach members of your organization, on
+a small monthly allowance. Responses carry `"sandbox": true`.
 
 | Situation | Response |
 | --- | --- |
@@ -243,24 +223,24 @@ organization, on a small monthly allowance. Responses carry `"sandbox": true`.
 | Allowance exhausted | `403 plan_limit_reached` |
 
 Upgrading lifts both with no code change. See
-[Authentication](/authentication).
+[Authentication](/authentication#sandbox-mode-on-free-plans).
 
 ## Errors
 
 | Status | Code | Cause |
 | --- | --- | --- |
-| 400 | `invalid_request` | Missing required field, a reserved header, or over a size limit. |
+| 400 | `invalid_request` | Missing required field, reserved header, or over a size limit. |
 | 400 | `invalid_email` | An address is not valid. |
 | 400 | `email_suppressed` | The address hard-bounced, complained, or is provider-suppressed. |
-| 403 | `domain_not_verified` | The `from` domain is not verified, or it is the test address on a send that is not a sandbox send. |
+| 403 | `domain_not_verified` | `from` domain not verified, or the test address on a non-sandbox send. |
 | 403 | `sandbox_recipient_not_allowed` | Free plan, recipient outside the organization. |
 | 403 | `plan_limit_reached` | Monthly send allowance exhausted. |
 | 403 | `sending_disabled` | Sending is off for this account. |
 | 429 | `rate_limit_exceeded` | Over 120 sends per minute. Honour `Retry-After`. |
 
-## Knowing what happened, without polling
+## Delivery events
 
-Polling `GET /emails/{id}` works, but [webhooks](/webhooks) are better: day3
-POSTs `email.delivered`, `email.bounced`, `email.complained` and
-`suppression.created` to your endpoint as they happen. `suppression.created` is
-the one that keeps your own database honest about which addresses are dead.
+Polling `GET /emails/{id}` works. [Webhooks](/webhooks) are better: day3 POSTs
+`email.delivered`, `email.bounced`, `email.complained` and
+`suppression.created` as they happen. Use `suppression.created` to keep your
+own database honest about dead addresses.

@@ -1,5 +1,6 @@
 const meta = {
-  index: { title: "Introduction" },
+  "--start": { type: "separator", title: "Get started" },
+  index: { title: "Introduction", theme: { toc: false, breadcrumb: false, copyPage: false } },
   quickstart: { title: "Quickstart" },
   authentication: { title: "Authentication" },
   conventions: { title: "Conventions" },
@@ -20,7 +21,7 @@ const meta = {
   webhooks: { title: "Webhooks" },
   mcp: { title: "MCP server" },
 
-  "--guides": { type: "separator", title: "Guides" },
+  "--learn": { type: "separator", title: "Learn" },
   guides: { title: "Guides" },
 };
 

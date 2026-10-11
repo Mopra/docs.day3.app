@@ -8,21 +8,19 @@ import { Callout, Tabs } from "nextra/components";
 # MCP server
 
 day3 runs a Model Context Protocol server, so an AI editor can work with your
-campaigns and automations directly. A draft lands in day3 as **editable composer
-blocks** rather than opaque HTML, so what the assistant writes is still yours to
-edit by hand.
+campaigns and automations directly. Drafts land as **editable composer blocks**,
+not opaque HTML, so you can still edit them by hand.
 
 ```
 https://go.day3.app/api/mcp
 ```
 
-One HTTP endpoint, authenticated with the same [API key](/authentication) as the
-REST API. There is nothing to install and nothing to run locally.
+One HTTP endpoint, authenticated with your [API key](/authentication). Nothing to
+install, nothing to run locally.
 
 ## Setup
 
-All three editors do the same thing, which is point at one URL and attach the key
-as a header. They just disagree about where that gets written down.
+Every editor does the same thing: point at the URL, send the key as a header.
 
 <Tabs items={["Claude Code", "Cursor", "VS Code"]}>
 <Tabs.Tab>
@@ -34,20 +32,18 @@ claude mcp add --transport http day3 https://go.day3.app/api/mcp --header "Autho
 ```
 
 <Callout type="warning">
-Keep this on **one line**, however long it gets. A `\` continuation is bash
-syntax: cmd.exe wants `^` and PowerShell a backtick, so on Windows the second
-line runs as its own command and the `--header` never arrives. That fails in the
-worst way, silently. The server is added without a credential, so it returns 401,
-the client falls back to OAuth discovery, hits our HTML 404, and reports
-`Invalid OAuth error response: Unrecognized token '<'`, which says nothing at all
-about a missing header.
+Keep it on **one line**. A `\` continuation is bash only; on Windows the
+`--header` line runs as its own command and never arrives. The server is then
+added without a key, returns 401, and the client reports
+`Invalid OAuth error response: Unrecognized token '<'`, which says nothing about
+the missing header.
 </Callout>
 
 </Tabs.Tab>
 <Tabs.Tab>
 
-Add to `.cursor/mcp.json` in your project, or `~/.cursor/mcp.json` for every
-project.
+Add to `.cursor/mcp.json` in your project, or `~/.cursor/mcp.json` for all
+projects.
 
 ```json
 {
@@ -63,8 +59,8 @@ project.
 </Tabs.Tab>
 <Tabs.Tab>
 
-Add to `.vscode/mcp.json`. The input prompt keeps the key out of the file, which
-matters because this one usually gets committed.
+Add to `.vscode/mcp.json`. The input prompt keeps the key out of a file that
+usually gets committed.
 
 ```json
 {
@@ -107,52 +103,38 @@ matters because this one usually gets committed.
 
 ## Sending is off by default
 
-`day3_send_campaign` and `day3_schedule_campaign` require a key with the
-`campaigns:send` scope, and `day3_enroll_in_automation` requires
-`automations:enroll`. Both are off unless you explicitly enabled them when
-minting the key.
+`day3_send_campaign` and `day3_schedule_campaign` need the `campaigns:send`
+scope. `day3_enroll_in_automation` needs `automations:enroll`. Both are off
+unless you enabled them when minting the key.
 
-<Callout type="info">
-This matters more for an agent than for a script. A script does what its author
-wrote. An agent holding the same key decides for itself, and "email everyone on
-the list" is not a decision to hand over by default.
-</Callout>
+A script does what its author wrote. An agent decides for itself, and "email
+everyone on the list" is not a decision to hand over by default. Enrolling
+promises a stranger every email in a flow, so it is scoped too. Listing
+automations names flows, not people, and is not.
 
-Enrolling is scoped by the same test: it puts mail in a stranger's inbox, and
-one call promises them every email in the flow. Listing automations is not
-scoped, because it names flows rather than people.
+`day3_send_test` needs **no scope**. It only reaches addresses the caller names,
+and it is capped and rate-limited. The default key gives your assistant the full
+draft, preview, test loop and stops at the audience.
 
-`day3_send_test` is deliberately **not** scoped. It only reaches addresses the
-caller names, it is capped and rate-limited, and it is the whole point of letting
-an editor iterate on an email. So the default setup gives your assistant a full
-write-draft-preview-test loop and stops exactly at the audience.
-
-If you do want an agent to be able to send, mint a second key with the scope on.
-It cannot be added to a key that already exists, which keeps the grant visible in
-your key list rather than buried in an edit history.
+Want an agent to send? Mint a second key with the scope on. Scopes cannot be
+added to an existing key, so the grant stays visible in your key list.
 
 ## A typical session
-
-Once the server is connected, this works:
 
 > Read our last three campaigns, then draft an August release note in the same
 > voice. Cover sending domains and the new API. Preview it and send me a test.
 
-The assistant calls `day3_context` to find your audience and sender,
-`day3_list_campaigns` and `day3_get_campaign` to pick up the voice,
-`day3_create_campaign` to write the draft in [day3
-Markdown](/campaigns), `day3_preview_campaign` to check it renders,
+The assistant calls `day3_context` for your audience and sender,
+`day3_list_campaigns` and `day3_get_campaign` to learn the voice,
+`day3_create_campaign` to write the draft in
+[day3 Markdown](/campaigns#day3-markdown), `day3_preview_campaign` to check it,
 and `day3_send_test` to put it in your inbox.
 
-The draft is then sitting in day3 waiting for you, as real composer blocks.
-Nothing has reached your list.
+The draft waits in day3 as real composer blocks. Nothing has reached your list.
 
-## Keeping the key out of prompts
+## Keep the key out of prompts
 
-Do not paste an API key into a prompt. Prompts get copied into third-party chat
-tools, into issue trackers, and into logs.
-
-Set `DAY3_API_KEY` in your environment and let the editor's config read it, as in
-the Claude Code and VS Code examples above. When you want an assistant to use the
-REST API directly rather than MCP, tell it to read the key from the environment
-rather than handing it over.
+Prompts get copied into chat tools, issue trackers and logs. Set `DAY3_API_KEY`
+in your environment and let the editor config read it, as in the Claude Code and
+VS Code examples. When an assistant calls the REST API directly, tell it to read
+the key from the environment.

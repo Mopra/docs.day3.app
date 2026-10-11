@@ -8,17 +8,14 @@ import { Callout } from "nextra/components";
 
 # Fields
 
-A field is a registered custom attribute key on one audience. Fields give an
-attribute a label, a type and a fallback, and they are what makes a
-`{{merge_tag}}` available in a campaign.
+A field is a registered attribute key on one audience. It gives the attribute a
+label, a type and a fallback, and makes its `{{merge_tag}}` available in
+campaigns.
 
-You rarely need to create one. Fields **register themselves** when a contact
-arrives carrying an attribute key that does not exist yet, exactly as they do on
-CSV import. Unlike Mailchimp merge fields, there is nothing to declare before an
-import.
-
-Create one explicitly when you want to set the `label`, `type` or `fallback` up
-front rather than accepting the defaults.
+You rarely create one. Fields **register themselves** when a contact arrives
+with a new attribute key, same as CSV import. Unlike Mailchimp merge fields,
+there's nothing to declare first. Create one explicitly only to set `label`,
+`type` or `fallback` up front.
 
 ## The Field object
 
@@ -38,19 +35,17 @@ front rather than accepting the defaults.
 | Field | Notes |
 | --- | --- |
 | `key` | The attribute key. Immutable. Normalized to `snake_case`. |
-| `label` | Human label shown in the app. Defaults from the key. |
+| `label` | Shown in the app. Defaults from the key. |
 | `type` | `text`, `number` or `date`. |
-| `fallback` | Value substituted when a contact has no value for this key. |
+| `fallback` | Used when a contact has no value for this key. |
 
-<Callout type="info">
-`type` describes how the app treats the value, for segment operators and
-formatting. The stored attribute value on a contact is **always a string**. A
-`number` field still needs `"5"`, not `5`. See [Contacts](/contacts).
-</Callout>
+`type` drives segment operators and formatting in the app. The stored value is
+**always a string**: a `number` field still takes `"5"`, not `5`. See
+[Contacts](/contacts#attributes).
 
 ### Addressing a field
 
-Either the id or the key:
+By id or by key:
 
 - `/fields/fld_1x9k4m2v0dz7`
 - `/fields/company`
@@ -68,19 +63,19 @@ curl https://go.day3.app/api/v1/audiences/aud_123/fields \
 
 <Endpoint method="POST" path="/v1/audiences/{audience_id}/fields" />
 
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `key` | string | Yes | Normalized to `snake_case`. |
-| `label` | string | No | Defaults from the key. |
-| `type` | string | No | `text` (default), `number` or `date`. |
-| `fallback` | string | No | Used when a contact has no value. |
-
 ```bash
 curl -X POST https://go.day3.app/api/v1/audiences/aud_123/fields \
   -H "Authorization: Bearer $DAY3_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "key": "plan", "label": "Plan", "type": "text", "fallback": "free" }'
 ```
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `key` | string | Yes | Normalized to `snake_case`. |
+| `label` | string | No | Defaults from the key. |
+| `type` | string | No | `text` (default), `number` or `date`. |
+| `fallback` | string | No | Used when a contact has no value. |
 
 ## Retrieve a field
 
@@ -93,22 +88,25 @@ curl -X POST https://go.day3.app/api/v1/audiences/aud_123/fields \
 `label`, `type` and `fallback` can change.
 
 <Callout type="warning">
-**`key` is immutable.** Renaming it would orphan every stored attribute value on
-every contact, so a `PATCH` containing `key` returns `422 immutable_field`. To
-rename in practice: create the new field, rewrite the contacts, delete the old
-one.
+**`key` is immutable.** Renaming it would orphan every stored value, so a
+`PATCH` containing `key` is `422 immutable_field`. To rename: create the new
+field, rewrite the contacts, delete the old one.
 </Callout>
 
 ## Delete a field
 
 <Endpoint method="DELETE" path="/v1/audiences/{audience_id}/fields/{id_or_key}" />
 
-Removes the **registry row only**. Stored values in contact `attributes` are left
-untouched, so the data is still there and the field will re-register itself the
-next time a contact arrives with that key.
-
-To actually clear the values, `PATCH` the contacts with the key set to `null`.
+Removes the **registry row only**. Values in contact `attributes` stay, and the
+field re-registers the next time a contact arrives with that key. To clear the
+values, `PATCH` the contacts with the key set to `null`.
 
 ```json
 { "id": "fld_1x9k4m2v0dz7", "deleted": true }
 ```
+
+## Errors
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| 422 | `immutable_field` | A `PATCH` tried to change `key`. |

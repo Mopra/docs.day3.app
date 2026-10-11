@@ -8,13 +8,7 @@ import { Callout } from "nextra/components";
 
 # Contacts
 
-A contact is a subscriber inside one audience. Email is unique per audience.
-
-Internally these rows are called subscribers. The API says **contacts**, matching
-the app's Contacts tab.
-
-This is the resource most worth reading carefully, because it is where a
-migration either goes smoothly or silently loses data.
+A contact is a subscriber in one audience. Email is unique per audience.
 
 ## The Contact object
 
@@ -40,54 +34,48 @@ migration either goes smoothly or silently loses data.
 | Status | Writable | Meaning |
 | --- | --- | --- |
 | `subscribed` | Yes | Mailable. The default. |
-| `unsubscribed` | Yes | Opted out. Keep the record, stop the mail. |
+| `unsubscribed` | Yes | Opted out. Record kept, mail stopped. |
 | `pending` | No | Awaiting double opt-in confirmation. |
 | `bounced` | No | Owned by the delivery pipeline. |
 | `complained` | No | Owned by the delivery pipeline. |
 | `suppressed` | No | Owned by the delivery pipeline. |
 
-You may set `subscribed` or `unsubscribed` on create, and flip between the two on
-`PATCH`. The other four belong to the delivery pipeline and the double opt-in
-flow. An upsert against a contact in one of those states updates the other
-fields and leaves the status alone.
+Set `subscribed` or `unsubscribed` on create, and flip between them with
+`PATCH`. The other four belong to delivery and double opt-in. An upsert against
+a contact in one of those states updates the other fields and leaves `status`
+alone.
 
-Being able to create a contact **already unsubscribed** is deliberate: a
-migrating sender has to carry opt-outs across and must never re-mail them.
+You can create a contact **already unsubscribed**. That is how a migration
+carries opt-outs across without re-mailing anyone.
 
 ### Addressing a contact
 
-Anywhere a contact id appears you can use either:
+Anywhere a contact id goes, you can use either:
 
 - the id: `/contacts/sub_xyz789q4v0dz`
 - a URL-encoded email: `/contacts/jane%40acme.com`
 
-Email is unique per audience, so this is unambiguous, and it removes the "look up
-the id first" round-trip that makes migrations painful.
-
-Emails are canonicalized, meaning trimmed and lowercased, before anything else.
+No lookup round-trip needed. Emails are trimmed and lowercased first, so
 `Ada@Acme.com` and `ada@acme.com` are the same contact.
 
 ## Attributes
 
-`attributes` is a flat map of string to string. Up to 50 keys, values up to 500
-characters. Unknown keys **register themselves** as [fields](/fields), so there
-is nothing to declare up front, and they become `{{merge_tags}}` in campaigns.
-
-Four things bite when importing a provider export:
+`attributes` is a flat string-to-string map: up to 50 keys, values up to 500
+characters. Unknown keys register themselves as [fields](/fields) and become
+`{{merge_tags}}` in campaigns. Nothing to declare up front.
 
 <Callout type="warning">
-**Values must be strings.** A number or boolean, such as `{"orders": 5}`, fails
-validation and rejects the **entire batch** with `400 invalid_request`, not just
-that row. Stringify every value before sending.
+**Values must be strings.** `{"orders": 5}` fails validation and rejects the
+**entire batch** with `400 invalid_request`, not just that row. Stringify every
+value.
 </Callout>
 
-- `email`, `first_name` and `last_name` are **reserved**. They are real columns,
-  so putting them in `attributes` is silently ignored. Send them as top-level
-  fields.
-- Keys are normalized to `snake_case`, so `"Company / Org"` becomes
-  `company_org`. Two source columns can therefore collide into one key.
-- On upsert, `attributes` is a **shallow merge**: provided keys overwrite, absent
-  keys survive, and an explicit `null` value deletes that key.
+- `email`, `first_name` and `last_name` are **reserved**. Inside `attributes`
+  they are silently ignored. Send them top-level.
+- Keys are normalized to `snake_case`: `"Company / Org"` becomes `company_org`.
+  Two source columns can collide into one key.
+- On upsert and `PATCH`, `attributes` is a **shallow merge**: provided keys
+  overwrite, absent keys survive, `null` deletes the key.
 
 ## List contacts
 
@@ -95,10 +83,10 @@ that row. Stringify every value before sending.
 
 | Param | Notes |
 | --- | --- |
-| `status` | Filter by any status, including the read-only ones. |
+| `status` | Any status, including the read-only ones. |
 | `email` | Exact match, after canonicalization. |
 | `segment_id` | Members of a segment, evaluated live. |
-| `limit`, `after` | Standard [pagination](/conventions). |
+| `limit`, `after` | [Pagination](/conventions#pagination). |
 
 ```bash
 curl "https://go.day3.app/api/v1/audiences/aud_123/contacts?status=subscribed&limit=100" \
@@ -108,15 +96,6 @@ curl "https://go.day3.app/api/v1/audiences/aud_123/contacts?status=subscribed&li
 ## Create a contact
 
 <Endpoint method="POST" path="/v1/audiences/{audience_id}/contacts" />
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `email` | string | Yes | Canonicalized on the way in. |
-| `first_name` | string | No | |
-| `last_name` | string | No | |
-| `attributes` | object | No | Flat string to string. |
-| `status` | string | No | `subscribed` (default) or `unsubscribed`. |
-| `unsubscribed_at` | string | No | ISO-8601. Only with `status: "unsubscribed"`. |
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/audiences/aud_123/contacts \
@@ -129,28 +108,36 @@ curl -X POST https://go.day3.app/api/v1/audiences/aud_123/contacts \
       }'
 ```
 
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `email` | string | Yes | Canonicalized on the way in. |
+| `first_name` | string | No | |
+| `last_name` | string | No | |
+| `attributes` | object | No | Flat string to string. |
+| `status` | string | No | `subscribed` (default) or `unsubscribed`. |
+| `unsubscribed_at` | string | No | ISO-8601. Only with `status: "unsubscribed"`. |
+
+An address on the account's suppression list is `409 email_suppressed` and
+nothing is created. That's correct behaviour. Don't retry.
+
 ### Upsert
 
-Add `?upsert=true` to change what happens on conflict:
+`?upsert=true` changes what happens on conflict:
 
 | | Email is new | Email exists |
 | --- | --- | --- |
 | Default | `201` created | `409 contact_already_exists` |
 | `?upsert=true` | `201` created | `200` updated |
 
-Merge semantics on both upsert and `PATCH`: provided fields overwrite, and
-`attributes` is a shallow merge.
-
-An email on the account's suppression list is `409 email_suppressed`, and the
-contact is not created. That is correct behaviour, not an error to retry.
+Upsert and `PATCH` merge: provided fields overwrite, `attributes` merges
+shallowly.
 
 ## Batch create or upsert
 
 <Endpoint method="POST" path="/v1/audiences/{audience_id}/contacts/batch" />
 
-The migration workhorse. Up to **1,000 contacts per call**, and the whole call
-costs one request against the rate limit. Never loop single creates for an
-import.
+Up to **1,000 contacts per call**, counted as one request against the
+[rate limit](/conventions#rate-limits). Never loop single creates for an import.
 
 ```json
 {
@@ -162,10 +149,10 @@ import.
 }
 ```
 
-Each item takes the same shape as a single create, plus an optional
-`topics` map applied after the upsert. Top-level `upsert` applies to every item.
+Each item has the single-create shape, plus an optional `topics` map applied
+after the upsert. Top-level `upsert` applies to every item.
 
-Response is `200` **even when individual rows fail**:
+Returns `200` **even when rows fail**:
 
 ```json
 {
@@ -179,39 +166,32 @@ Response is `200` **even when individual rows fail**:
 }
 ```
 
-### Per-item failures
+**Per-item failures:** an invalid email, a suppressed email, or a conflict when
+`upsert` is false. The rest of the batch still applies.
 
-Invalid email, suppressed email, or a conflict when `upsert` is false. Everything
-else in the batch still applies.
-
-### Whole-request rejections
-
-The batch is rejected entirely, with nothing applied, only for caller bugs:
+**Whole-request rejections** apply nothing. They only happen for caller bugs:
 
 | Cause | Response |
 | --- | --- |
 | More than 1,000 items | `400 batch_too_large` |
-| Duplicate emails within the payload | `400 invalid_request`, offending indexes listed |
+| Duplicate emails in the payload | `400 invalid_request`, offending indexes listed |
 | A non-string attribute value | `400 invalid_request` |
 | An unknown topic id | `400 invalid_request` |
-| Free-tier subscriber cap would be crossed | `403 plan_limit_reached` |
+| Free-plan subscriber cap would be crossed | `403 plan_limit_reached` |
 
-Because emails are canonicalized first, `Ada@Acme.com` and `ada@acme.com` in one
-payload are a duplicate and reject the whole request. De-duplicate
-case-insensitively before sending a chunk.
+Duplicates are checked after canonicalization: `Ada@Acme.com` and
+`ada@acme.com` in one payload reject the whole request. De-duplicate
+case-insensitively before you send.
 
-<Callout type="info">
-Always send `Idempotency-Key` on a batch. A network-failed import can then be
-retried safely, which together with per-row results is what makes a migration a
-short loop rather than a project.
-</Callout>
+Always send an `Idempotency-Key` on a batch, so a network failure is safe to
+retry.
 
 ## Retrieve a contact
 
 <Endpoint method="GET" path="/v1/audiences/{audience_id}/contacts/{id_or_email}" />
 
-Add `?expand=topics` to populate `topics` with the effective per-topic
-subscription map instead of `null`.
+`?expand=topics` fills `topics` with the effective per-topic map instead of
+`null`.
 
 ```bash
 curl "https://go.day3.app/api/v1/audiences/aud_123/contacts/jane%40acme.com?expand=topics" \
@@ -222,7 +202,7 @@ curl "https://go.day3.app/api/v1/audiences/aud_123/contacts/jane%40acme.com?expa
 
 <Endpoint method="PATCH" path="/v1/audiences/{audience_id}/contacts/{id_or_email}" />
 
-Same fields as create, same merge semantics. `status` may only flip between
+Same fields and merge rules as create. `status` only flips between
 `subscribed` and `unsubscribed`.
 
 ## Delete a contact
@@ -230,16 +210,16 @@ Same fields as create, same merge semantics. `status` may only flip between
 <Endpoint method="DELETE" path="/v1/audiences/{audience_id}/contacts/{id_or_email}" />
 
 <Callout type="error">
-`DELETE` **erases** the row. This is the GDPR erasure path. To stop mailing
-someone while keeping the record, `PATCH` with `{ "status": "unsubscribed" }`
-instead.
+`DELETE` **erases** the row. It is the GDPR erasure path. To stop mailing
+someone and keep the record, `PATCH` `{ "status": "unsubscribed" }`.
 </Callout>
 
 ## Contact topics
 
 <Endpoint method="GET" path="/v1/audiences/{audience_id}/contacts/{id_or_email}/topics" />
 
-Returns the **effective** state, with explicit rows overlaid on topic defaults:
+Returns the **effective** state: explicit choices overlaid on topic defaults.
+`is_default` says which one a value came from.
 
 ```json
 {
@@ -250,27 +230,25 @@ Returns the **effective** state, with explicit rows overlaid on topic defaults:
 }
 ```
 
-`is_default` tells you whether the value comes from the topic's default or from
-an explicit choice this contact made.
-
 <Endpoint method="PATCH" path="/v1/audiences/{audience_id}/contacts/{id_or_email}/topics" />
 
-Takes a partial map and records explicit deviations. Topics you leave out are
+Takes a partial map and records explicit choices. Topics you leave out are
 untouched.
 
 ```json
 { "topics": { "top_789": false, "top_790": true } }
 ```
 
-This is how a Mailchimp migration carries group and interest opt-ins across, one
-call per contact, or in bulk via the `topics` key on each batch item.
+Use this to carry Mailchimp groups and interests across, per contact, or in bulk
+with the `topics` key on batch items.
 
-## Things that will surprise you
+## Gotchas
 
-1. **You cannot backdate a contact.** `created_at` in a payload is silently
-   dropped. `unsubscribed_at` is the one exception and is honoured on create.
-2. **Unknown top-level fields are dropped, not rejected**, so a payload can look
-   accepted while losing data. Map every source column deliberately.
-3. **Suppression beats everything.** If you import a suppression list first,
-   contacts for those addresses will fail on the way in. That is the point.
-4. See [Conventions](/conventions) for the full list.
+1. **You can't backdate a contact.** `created_at` in a payload is silently
+   dropped. `unsubscribed_at` is the one exception, honoured on create.
+2. **Unknown top-level fields are dropped, not rejected.** A payload can look
+   accepted and still lose data. Map every source column.
+3. **Suppression wins.** Import suppressions first and contacts for those
+   addresses fail on the way in. That's the point.
+
+More in [Conventions](/conventions).

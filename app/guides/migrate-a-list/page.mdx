@@ -3,33 +3,35 @@ title: Migrate a list
 description: Move an audience off Resend, Mailchimp, Kit or anything else. Suppressions first, then contacts, then a careful first send.
 ---
 
-import { Callout } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 
 # Migrate a list
 
 Moving a list is mostly about not damaging your sending reputation on the way.
-The order matters more than the code does.
-
-## The order
-
-1. **Export from your old provider.** Contacts *and* the suppression list, which
-   is usually a separate download.
-2. **Import suppressions first.** [Suppressions](/suppressions)
-3. **Import contacts in batches.** [Contacts](/contacts)
-4. **Verify your sending domain.** In the app, under **Sending**.
-5. **Send to your most engaged segment first**, not the whole list.
+The order matters more than the code.
 
 <Callout type="warning">
-Suppressions before contacts, always. If you import contacts first and send
-before the suppression list lands, your first campaign re-mails every address
-that already hard-bounced or complained elsewhere. Mailbox providers read that
-as exactly what it looks like, and you will spend weeks recovering.
+**Suppressions before contacts, always.** Send before the suppression list lands
+and your first campaign re-mails every address that already bounced or
+complained elsewhere. Recovering from that takes weeks.
 </Callout>
 
-Importing suppressions first means contacts for those addresses fail on the way
-in, with `email_suppressed`. That is the system working, not an error to retry.
+<Steps>
 
-## Step 1: suppressions
+### Export from your old provider
+
+Contacts **and** the suppression list. The suppression list is usually a
+separate download.
+
+### Check the plan limit
+
+Free plans cap the list at 500 subscribers. A batch that would cross the cap is
+rejected **whole**, with the remaining headroom in the message.
+
+Count your source rows. If they exceed the cap, upgrade before you start. Do not
+split batches to sneak under it.
+
+### Import suppressions
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/suppressions \
@@ -39,18 +41,18 @@ curl -X POST https://go.day3.app/api/v1/suppressions \
   -d '{ "reason": "bounced", "emails": ["a@x.com", "b@y.com"] }'
 ```
 
-Up to 1,000 addresses per call, and `reason` is required with no default. Post
-each reason separately: your provider's bounce list is `bounced`, its complaint
-list is `complained`, its global unsubscribes are `unsubscribed`.
+Up to 1,000 addresses per call. `reason` is required, so post each list
+separately: bounces as `bounced`, complaints as `complained`, global
+unsubscribes as `unsubscribed`.
 
-Check `total_suppressed_after` in the response against what you expected. Posting
-the wrong file here makes your whole audience unmailable, and there is no bulk
-undo.
+Check `total_suppressed_after` against what you expected. The wrong file here
+makes your whole audience unmailable, and there is no bulk undo. See
+[Suppressions](/suppressions).
 
-## Step 2: contacts
+### Import contacts in batches
 
-Use the batch endpoint. Up to 1,000 per call, and the whole call costs one
-request against the rate limit, so 50,000 contacts is 50 requests.
+Up to 1,000 per call, and each call counts as one request against the rate
+limit. 50,000 contacts is 50 requests. See [Contacts](/contacts).
 
 ```js
 const CHUNK = 1000;
@@ -95,68 +97,62 @@ for (let i = 0; i < rows.length; i += CHUNK) {
 }
 ```
 
-### The five things that go wrong
+Contacts for suppressed addresses fail with `email_suppressed`. That is the
+system working. Do not retry them.
+
+### Verify your sending domain
+
+In the app, under **Sending**.
+
+### Send to your most engaged segment first
+
+Not the whole list. See [The first send](#the-first-send).
+
+</Steps>
+
+## What goes wrong on import
 
 <Callout type="error">
-**Non-string attribute values reject the entire batch**, not the offending row. A
-single `{"orders": 5}` returns `400 invalid_request` for all 1,000 contacts.
-`String()` every value.
+**One non-string attribute value rejects the entire batch.** A single
+`{"orders": 5}` returns `400 invalid_request` for all 1,000 contacts. `String()`
+every value.
 </Callout>
 
-1. **Duplicate emails inside one payload reject the whole request.** Emails are
-   canonicalized first, so `Ada@Acme.com` and `ada@acme.com` are duplicates.
-   De-duplicate case-insensitively before sending a chunk.
-2. **You cannot backdate a contact.** `created_at` in the payload is silently
-   dropped. Original signup dates cannot be preserved. `unsubscribed_at` is the
-   one exception and is honoured, so opt-out dates do survive.
-3. **`email`, `first_name` and `last_name` are reserved in `attributes`.** They
-   are real columns, so putting them in `attributes` is silently ignored. Send
-   them as top-level fields.
+1. **Duplicate emails in one payload reject the whole request.** Emails are
+   lowercased first, so `Ada@Acme.com` and `ada@acme.com` collide. De-duplicate
+   case-insensitively per chunk.
+2. **You cannot backdate a contact.** `created_at` is silently dropped; original
+   signup dates are lost. `unsubscribed_at` is honoured, so opt-out dates
+   survive.
+3. **`email`, `first_name` and `last_name` are ignored inside `attributes`.**
+   They are real columns. Send them top-level.
 4. **Attribute keys are normalized to `snake_case`.** `"Company / Org"` becomes
-   `company_org`, so two source columns can collide into one key. Check your
-   mapping before running 50 chunks.
+   `company_org`, so two source columns can collide. Check the mapping before
+   running 50 chunks.
 5. **Unknown top-level fields are dropped, not rejected.** Map every source
-   column deliberately, and tell whoever asked for the migration what could not
-   be carried across rather than assuming it was.
+   column on purpose, and report what could not be carried across.
 
-### Custom fields
+**Custom fields** need no declaring. Unknown attribute keys
+[register themselves](/fields) and become `{{merge_tags}}`. Create fields up
+front only to set a label, type or fallback.
 
-You do not need to declare anything. Unknown attribute keys
-[register themselves](/fields) as fields, and become `{{merge_tags}}` in
-campaigns. Create fields explicitly only when you want to set a label, type or
-fallback up front.
+**Topics.** Carry over groups or interests with a `topics` map on each batch
+item, using topic ids you created first. See [Topics](/topics).
 
-### Topics
+## The first send
 
-If your old provider had groups or interests, carry them across with a `topics`
-map on each batch item, using topic ids you created first. See
-[Topics](/topics).
+Reputation is built, not transferred. A new domain that mails 50,000 people on
+day one looks like a spammer, whatever the list's history.
 
-## Step 3: check the plan limit before you start
-
-Free plans cap the list at 500 subscribers. A batch that would cross the cap is
-rejected **whole**, with the remaining headroom in the message, so nothing is
-partially applied.
-
-Count your source rows first. If they exceed the cap, upgrade before importing
-rather than discovering it on chunk 1. Do not split batches to sneak under a cap.
-
-## Step 4: the first send
-
-Domain reputation is built, not transferred. A brand-new sending domain that
-immediately mails 50,000 people looks exactly like a spammer, whatever the list's
-history elsewhere.
-
-- **Same domain if you can.** If you sent from `updates.acme.com` before, keep
-  using it. Reputation follows the domain, so this is the single biggest lever.
-- **Send to your most engaged segment first.** People who opened something in the
+- **Keep the same domain if you can.** If you sent from `updates.acme.com`
+  before, keep it. Reputation follows the domain; this is the biggest lever.
+- **Start with your most engaged segment**: people who opened something in the
   last 90 days. Build a [segment](/segments) for it.
-- **Then widen** over a few sends, watching bounces and complaints.
+- **Widen** over a few sends, watching bounces and complaints.
 
-Set up [webhooks](/webhooks) before the first send, so you learn about bounces
-from your own database rather than from a dashboard.
+Set up [webhooks](/webhooks) first, so bounces reach your own database.
 
-## Verifying the result
+## Verify the result
 
 ```bash
 # Contact counts by status.
@@ -172,12 +168,11 @@ curl "https://go.day3.app/api/v1/suppressions?limit=1" \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-`contact_counts` on the audience should match your source, minus the rows that
-failed on suppressed addresses. If it does not, the `results` array from each
-batch tells you exactly which index failed and why.
+`contact_counts` on the audience should match your source, minus rows that
+failed on suppressed addresses. Each batch's `results` array names every failed
+index and why.
 
 ## Further reading
 
-There is a longer, non-API version of the deliverability side of this on the main
-site: [How to migrate an email list without wrecking your
-deliverability](https://day3.app/blog/migrate-email-list-without-losing-deliverability).
+The deliverability side, at length:
+[How to migrate an email list without wrecking your deliverability](https://day3.app/blog/migrate-email-list-without-losing-deliverability).

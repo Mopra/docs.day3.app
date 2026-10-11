@@ -3,32 +3,9 @@ title: day3 API
 description: Send transactional email, manage audiences and contacts, and drive campaigns from code or from an AI editor.
 ---
 
-# day3 API
+import { Hero, Cards } from "@/components/home";
 
-day3 is an email platform billed by the emails you send, never by the size of
-your list. This API is how your code uses it.
-
-There are two things it does:
-
-- **Send transactional email.** Password resets, receipts, magic links. One
-  `POST`, out of the same verified domain and the same monthly allowance as your
-  newsletter.
-- **Manage the list.** Audiences, contacts, custom fields, segments, topics and
-  suppressions, built so that moving a list off another provider is a short
-  script rather than a project.
-
-Campaigns can also be drafted, previewed, tested and sent over the API,
-automations can be enrolled into from your own backend, and the same surface is
-exposed to AI editors through an [MCP server](/mcp).
-
-## Base URL
-
-```
-https://go.day3.app/api/v1
-```
-
-The app is served from `go.day3.app`, so the API is too. `day3.app` is the
-marketing site and has no API.
+<Hero />
 
 ## Your first request
 
@@ -37,42 +14,34 @@ curl https://go.day3.app/api/v1/audiences \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-If that returns a JSON object with a `data` array, you are done setting up. The
-[quickstart](/quickstart) goes from nothing to a delivered email in three steps.
+A `200` with a `data` array means you're set up. No key yet? The
+[quickstart](/quickstart) gets you from nothing to a delivered email in three
+steps.
 
-## How to read these docs
+## Start here
 
-| If you want to | Start at |
-| --- | --- |
-| Send your app's operational email | [Emails](/emails) |
-| Move a list off Resend, Mailchimp or Kit | [Migrate a list](/guides/migrate-a-list) |
-| Keep your users in sync with an audience | [Contacts](/contacts) |
-| Know when mail bounces, without polling | [Webhooks](/webhooks) |
-| Write and send a newsletter from code | [Campaigns](/campaigns) |
-| Start a welcome series when someone signs up | [Automations](/automations) |
-| Let Claude Code or Cursor draft an email | [MCP server](/mcp) |
+<Cards />
 
 Read [Conventions](/conventions) once. Pagination, idempotency, ids and rate
-limits work the same way on every endpoint, and they are not repeated on each
-page.
+limits work the same on every endpoint and aren't repeated per page.
 
 ## Objects
 
 | Object | Id prefix | What it is |
 | --- | --- | --- |
-| Email | `eml_` | One transactional email sent through the API. |
-| Audience | `aud_` | A list of contacts. Everything else lives inside one. |
-| Contact | `sub_` | A subscriber. Unique by email within an audience. |
-| Field | `fld_` | A registered custom attribute key. |
-| Segment | `seg_` | A saved filter, evaluated live at read time. |
-| Topic | `top_` | A subscription category a contact can opt out of on its own. |
-| Campaign | `cmp_` | A newsletter: one email to a whole audience. |
-| Automation | `aut_` | A published flow a contact runs through, one step at a time. |
-| Suppression | `sup_` | An account-wide "never email this address" entry. |
+| [Email](/emails) | `eml_` | One transactional email. |
+| [Audience](/audiences) | `aud_` | A list of contacts. Everything else lives inside one. |
+| [Contact](/contacts) | `sub_` | A subscriber. Unique by email within an audience. |
+| [Field](/fields) | `fld_` | A registered custom attribute key. |
+| [Segment](/segments) | `seg_` | A saved filter, evaluated live. |
+| [Topic](/topics) | `top_` | A category a contact can opt out of on its own. |
+| [Campaign](/campaigns) | `cmp_` | One email to a whole audience. |
+| [Automation](/automations) | `aut_` | A published flow a contact runs through. |
+| [Suppression](/suppressions) | `sup_` | An account-wide "never email this address". |
 
-## Set up in the app
+## Set up in the app, not the API
 
-Sending domains, senders and OAuth clients are configured in the app rather than
-over the API, and automation flows are built on the canvas in the app and only
-enrolled into from code. Verify a sending domain under **Sending** before you
-mail real subscribers.
+Sending domains, senders and OAuth clients live in the app at
+[go.day3.app](https://go.day3.app). Automations are built on the app's canvas
+and only enrolled into from code. Verify a sending domain under **Sending**
+before you mail real subscribers.

@@ -1,44 +1,45 @@
 ---
 title: Quickstart
-description: From nothing to a delivered transactional email in three steps.
+description: From zero to a delivered email in three steps, with no DNS setup.
 ---
+
+import { Steps } from "nextra/components";
 
 # Quickstart
 
-Three steps to a delivered email. For the first one you need a day3 account and
-nothing else.
+You need a day3 account. Nothing else.
 
-## 1. Mint a key
+<Steps>
 
-In the app, go to **API keys** and create one. You have to be an admin of the
-organization. The full key is shown once, at creation, and never again: day3
-stores only a SHA-256 hash of it.
+### Mint a key
 
-Leave the elevated scopes off for now. The base grant already covers sending
-transactional email and everything to do with lists.
+In the app, open **API keys** and create one. You must be an organization
+admin. The key is shown once; day3 stores only its SHA-256 hash.
+
+Leave the elevated scopes off. The base grant covers transactional sends and
+everything list-related.
 
 ```bash
 export DAY3_API_KEY="day3_live_xxxxxxxxxxxxxxxxxxxx"
 ```
 
-Read the key from the environment in your code. Never commit it and never paste
-it into a prompt.
+Read it from the environment. Never commit it, never paste it into a prompt.
 
-## 2. Check that it works
+### Check that it works
 
 ```bash
 curl https://go.day3.app/api/v1/audiences \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-A `200` with a `data` array means the key is live. A `401 invalid_api_key` means
-it was mistyped or revoked.
+`200` with a `data` array: the key is live. `401 invalid_api_key`: mistyped or
+revoked.
 
-## 3. Send
+### Send
 
-Every new organization is given a **test address** on a day3-owned domain, so
-your first send needs no DNS setup at all. Find it in the app under **Sending**,
-on the card above the domain list. It looks like `acme@sandbox.day3.app`.
+Every new organization gets a **test address** on a day3-owned domain, so your
+first send needs no DNS. Find it under **Sending**, on the card above the domain
+list. It looks like `acme@sandbox.day3.app`.
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/emails \
@@ -53,13 +54,12 @@ curl -X POST https://go.day3.app/api/v1/emails \
       }'
 ```
 
-Send it to yourself. The test address reaches **members of your own
-organization** and nobody else, because its sending reputation is shared with
-every other day3 account. Full rules on
-[Emails](/emails#the-day3-test-address).
+Send it to yourself. The test address only reaches **members of your own
+organization**, because its reputation is shared with every day3 account. Full
+rules: [the day3 test address](/emails#the-day3-test-address).
 
-The response is the [Email object](/emails) with `status: "queued"`. Delivery is
-asynchronous and normally lands within seconds:
+You get back the [Email object](/emails) with `status: "queued"`. Delivery is
+async and usually lands in seconds:
 
 ```json
 {
@@ -76,42 +76,42 @@ asynchronous and normally lands within seconds:
 }
 ```
 
-Poll `GET /emails/{id}` to watch it walk to `delivered`, or take
-[webhooks](/webhooks) so day3 tells you instead.
+Poll `GET /emails/{id}` to watch it reach `delivered`, or use
+[webhooks](/webhooks) and let day3 tell you.
 
-### Then verify your own domain
+</Steps>
 
-To reach anyone outside your organization you need a sending domain of your own,
-set up in the app under **Sending**. Once it is verified, any local part on it
-works without pre-creating a sender: `noreply@`, `receipts@`, `hello@`.
+## Verify your own domain
+
+To reach anyone outside your organization, verify a sending domain under
+**Sending**. Then any local part works with no sender setup: `noreply@`,
+`receipts@`, `hello@`.
 
 ```json
 "from": "Acme <noreply@yourdomain.com>"
 ```
 
-That is the only line that changes. An unverified domain is
-`403 domain_not_verified`, so verify it rather than retrying.
+That is the only line that changes. An unverified domain returns
+`403 domain_not_verified`. Verify it; don't retry.
 
 ## On a free plan
 
-You can do all of this on a free organization, which sends in **sandbox mode**:
-real email, but only to addresses belonging to members of your own organization,
-and 100 emails a month. Responses carry `"sandbox": true`.
+Free organizations send in **sandbox mode**: real email, only to members of your
+organization, 100 emails a month. Responses carry `"sandbox": true`. Anyone else
+is `403 sandbox_recipient_not_allowed`.
 
-Anyone else is `403 sandbox_recipient_not_allowed`. Upgrading lifts both limits
-with no code change, so an integration written against sandbox mode is already
-the production integration.
+Upgrading lifts both limits with no code change. Your sandbox integration is
+already the production integration.
 
-One thing does change on upgrade: the test address stops working, because it is
-only ever allowed to carry sandbox mail. Verify your own domain before you
-upgrade and the switch is one line.
+One thing does change: the test address stops working on upgrade, because it
+only carries sandbox mail. Verify your own domain first and the switch is one
+line.
 
-## Where to go next
+## Next
 
-- [Emails](/emails) for the full sending contract, including multiple
-  recipients, custom headers and tags.
-- [Conventions](/conventions) for pagination, idempotency and rate limits. Worth
-  ten minutes before you write an import script.
-- [Migrate a list](/guides/migrate-a-list) if you are moving off another
-  provider.
-- [Automations](/automations) to start a welcome series from your own backend.
+- [Emails](/emails): the full sending contract, including multiple recipients,
+  custom headers and tags.
+- [Conventions](/conventions): pagination, idempotency, rate limits. Read it
+  before you write an import script.
+- [Migrate a list](/guides/migrate-a-list): moving off another provider.
+- [Automations](/automations): start a welcome series from your backend.

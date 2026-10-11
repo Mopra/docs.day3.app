@@ -8,11 +8,10 @@ import { Callout } from "nextra/components";
 
 # Segments
 
-A segment is a saved filter over one audience. Segments are **live**: membership
-is computed at read time and never materialized, so a segment is always current
-and there is nothing to refresh.
+A segment is a saved filter over one audience. It's **live**: membership is
+computed at read time, never stored, so there is nothing to refresh.
 
-Use one to target a campaign, or as a `?segment_id=` filter when listing
+Target a campaign with one, or pass `?segment_id=` when listing
 [contacts](/contacts).
 
 ## The Segment object
@@ -36,20 +35,16 @@ Use one to target a campaign, or as a `?segment_id=` filter when listing
 
 ## The filter contract
 
-`filter` is the whole contract, and it is stable.
+`filter` is the whole contract, and it's stable.
 
 | Key | Values |
 | --- | --- |
 | `match` | `"all"` or `"any"`. |
-| `conditions` | 1 to 10 conditions. |
+| `conditions` | 1 to 10 conditions, each `{ field, op, value? }`. |
 
-Each condition is `{ field, op, value? }`.
+`field` is `email`, `first_name`, `last_name`, or any custom attribute key.
 
-**`field`** is `email`, `first_name`, `last_name`, or any custom attribute key.
-
-**`op`** is one of:
-
-| Operator | Takes a `value` | Notes |
+| `op` | Takes `value` | Notes |
 | --- | --- | --- |
 | `equals` | Yes | |
 | `not_equals` | Yes | |
@@ -60,29 +55,22 @@ Each condition is `{ field, op, value? }`.
 | `greater_than` | Yes | Numeric comparison. |
 | `less_than` | Yes | Numeric comparison. |
 
-`is_set` and `is_not_set` take no `value`. `greater_than` and `less_than` need a
-numeric one.
-
-New operators may be added over time. That is additive and non-breaking: nothing
-is ever removed.
-
-A filter rejected on write is `400 invalid_request`, and `param` names the exact
-path that failed, such as `filter.conditions.0.value`. The separate
-`invalid_filter` code belongs to the read side: it means a *stored* filter no
-longer parses, so listing that segment's members fails rather than quietly
-matching everyone.
+Operators may be added, never removed.
 
 <Callout type="warning">
-**`value` is always a JSON string**, including for `greater_than` and
-`less_than`. Send `"value": "5"`, never `"value": 5`: a bare number fails
-validation with `400 invalid_request`. The comparison itself is numeric, so
-`"5"` and `"40"` order correctly, and a row whose stored value is not a number
-simply does not match.
+**`value` is always a JSON string**, even for `greater_than` and `less_than`.
+Send `"5"`, never `5`: a bare number is `400 invalid_request`. The comparison is
+still numeric, so `"5"` and `"40"` order correctly. A stored value that isn't a
+number doesn't match.
 </Callout>
 
-A missing attribute is treated as an empty value, so `plan not_equals pro`
-includes contacts with no `plan` at all. That is usually what a human means by
-it, and it is worth knowing before you use a segment to target a send.
+A missing attribute counts as empty, so `plan not_equals pro` includes contacts
+with no `plan` at all. Check that before targeting a send.
+
+A filter rejected on write is `400 invalid_request`, with `param` naming the
+exact path, such as `filter.conditions.0.value`. `invalid_filter` is the read
+side: a *stored* filter no longer parses, so listing its members fails instead
+of quietly matching everyone.
 
 ## List segments
 
@@ -91,11 +79,6 @@ it, and it is worth knowing before you use a segment to target a send.
 ## Create a segment
 
 <Endpoint method="POST" path="/v1/audiences/{audience_id}/segments" />
-
-| Field | Type | Required |
-| --- | --- | --- |
-| `name` | string | Yes |
-| `filter` | object | Yes |
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/audiences/aud_123/segments \
@@ -113,6 +96,11 @@ curl -X POST https://go.day3.app/api/v1/audiences/aud_123/segments \
       }'
 ```
 
+| Field | Type | Required |
+| --- | --- | --- |
+| `name` | string | Yes |
+| `filter` | object | Yes |
+
 ## Retrieve a segment
 
 <Endpoint method="GET" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
@@ -121,27 +109,30 @@ curl -X POST https://go.day3.app/api/v1/audiences/aud_123/segments \
 
 <Endpoint method="PATCH" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
 
-`name`, `filter`, or both. A `filter` you send replaces the previous one whole
-rather than merging into it.
+`name`, `filter`, or both. A new `filter` replaces the old one whole. No merge.
 
 ## Delete a segment
 
 <Endpoint method="DELETE" path="/v1/audiences/{audience_id}/segments/{segment_id}" />
 
-Deletes the saved filter. Contacts are untouched, because a segment never owned
-them.
+Deletes the filter. Contacts are untouched.
 
 ## List the members of a segment
 
 <Endpoint method="GET" path="/v1/audiences/{audience_id}/segments/{segment_id}/contacts" />
 
-Current matches, evaluated at request time, with standard
-[pagination](/conventions). Returns [Contact](/contacts) objects.
+Current matches as [Contact](/contacts) objects,
+[paginated](/conventions#pagination). Same as listing contacts with
+`?segment_id=seg_456`.
 
 ```bash
 curl "https://go.day3.app/api/v1/audiences/aud_123/segments/seg_456/contacts?limit=100" \
   -H "Authorization: Bearer $DAY3_API_KEY"
 ```
 
-Equivalent to listing contacts with `?segment_id=seg_456`. Use whichever reads
-better in your code.
+## Errors
+
+| Status | Code | Cause |
+| --- | --- | --- |
+| 400 | `invalid_request` | The filter failed validation on write. `param` names the path. |
+| 400 | `invalid_filter` | A stored filter no longer parses, so its members can't be listed. |

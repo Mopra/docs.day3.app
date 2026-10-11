@@ -1,52 +1,47 @@
 ---
 title: Conventions
-description: Ids, timestamps, field naming, pagination, idempotency and rate limits. The rules every endpoint shares.
+description: Ids, timestamps, pagination, idempotency and rate limits. The rules every endpoint shares.
 ---
+
+import { Callout } from "nextra/components";
 
 # Conventions
 
-These apply to every endpoint and are not repeated on the resource pages. Read
-this once before writing an import script.
+These apply to every endpoint and aren't repeated on resource pages. Read them
+once before you write an import script.
 
 ## Requests and responses
 
-JSON in, JSON out, UTF-8. Send `Content-Type: application/json` on any request
-with a body.
+JSON in, JSON out, UTF-8. Send `Content-Type: application/json` with any body.
 
-- **Field names are `snake_case`.** The app is camelCase internally; the public
-  API is not.
+- **Fields are `snake_case`.**
 - **Ids are prefixed strings**: `eml_`, `aud_`, `sub_`, `fld_`, `seg_`, `top_`,
   `cmp_`, `aut_`, `aen_`, `sup_`, `whe_`, `whd_`, `evt_`. Treat them as opaque.
-- **Timestamps are ISO-8601 UTC**, with milliseconds and a `Z`:
-  `2026-08-21T09:00:00.000Z`.
-- **Ignore unknown response fields.** New fields get added without a version
-  bump. Additive changes are not breaking and land in `v1`; anything breaking
-  would be `v2`.
-- **Deletes return `200`** with `{ "id": "...", "deleted": true }`, not `204`. A
-  body confirms what was deleted and is friendlier to naive HTTP clients.
-- **Another organization's id returns `404`, never `403`.** Existence is never
-  leaked.
+- **Timestamps are ISO-8601 UTC** with milliseconds: `2026-08-21T09:00:00.000Z`.
+- **Ignore unknown response fields.** Additive changes ship in `v1` without a
+  version bump. Breaking changes would be `v2`.
+- **Deletes return `200`** with `{ "id": "...", "deleted": true }`, not `204`.
+- **Another organization's id is `404`, never `403`.** Existence never leaks.
 
 ## Unknown fields in a request are dropped, not rejected
 
-This one bites. An unrecognised top-level field is silently ignored, so a
-payload can look accepted while quietly losing data.
+An unrecognised top-level field is silently ignored. A payload can look accepted
+while losing data.
 
-The case that catches everyone: **you cannot backdate a contact.** A `created_at`
-in the payload is stripped and the contact gets today's date. There is no way to
-preserve original signup dates on import.
+<Callout type="warning">
+**You can't backdate a contact.** `created_at` in a payload is stripped and the
+contact gets today's date. Original signup dates can't be preserved on import.
+`unsubscribed_at` is the exception: it is honoured on create, so opt-out dates
+survive a migration.
+</Callout>
 
-`unsubscribed_at` is the one exception. It is honoured on create, so opt-out
-dates do survive a migration.
-
-Map every source column onto a documented field or into `attributes`, and tell
-your user what could not be carried across rather than assuming it was.
+Map every source column to a documented field or into `attributes`, and tell
+your user what couldn't be carried over.
 
 ## Pagination
 
-Every list endpoint is cursor-paginated. There are no page numbers and no
-offsets, because offsets break under concurrent writes, which is exactly the
-migration case.
+Every list endpoint is cursor-paginated. No page numbers, no offsets: offsets
+break under concurrent writes, which is exactly the migration case.
 
 ```
 GET /audiences/aud_123/contacts?limit=100&after=sub_01h...
@@ -55,7 +50,7 @@ GET /audiences/aud_123/contacts?limit=100&after=sub_01h...
 | Param | Values |
 | --- | --- |
 | `limit` | 1 to 100. Default 50. |
-| `after` | An opaque cursor. Pass the previous response's `next_cursor`. |
+| `after` | Opaque cursor. Pass the previous response's `next_cursor`. |
 
 ```json
 {
@@ -65,7 +60,7 @@ GET /audiences/aud_123/contacts?limit=100&after=sub_01h...
 }
 ```
 
-Loop until `has_more` is `false`. Ordering is stable, newest first
+Loop until `has_more` is `false`. Order is stable, newest first
 (`created_at DESC, id DESC`), and the cursor encodes both.
 
 ```js
@@ -87,31 +82,29 @@ do {
 
 ## Idempotency
 
-Any `POST` accepts an optional header:
+Every `POST` accepts:
 
 ```
 Idempotency-Key: <your own string, 255 characters or fewer>
 ```
 
-A retry with the same key within 24 hours returns the stored original response,
-same status and same body, with `Idempotency-Replayed: true`. Always set it on
-imports and on sends.
+A retry with the same key within 24 hours replays the original response, same
+status and body, with `Idempotency-Replayed: true`. Always set it on imports and
+sends.
 
-- The same key with a **different** body is `409 idempotency_conflict`.
-- Two **concurrent** requests with one key resolve to exactly one execution. The
-  loser also gets `409 idempotency_conflict`, meaning "already in progress", and
-  should retry in a moment.
+- Same key, **different** body: `409 idempotency_conflict`.
+- Two **concurrent** requests with one key run exactly once. The loser gets
+  `409 idempotency_conflict` ("already in progress") and should retry shortly.
 - A claim abandoned by a crashed request is taken over after five minutes.
 - `POST /emails` completes its claim in the same transaction that writes the
-  email row. A crash mid-request therefore leaves either no email, so the retry
-  sends it, or an email whose response the retry replays. Never a duplicate
-  send.
+  email. A crash leaves either no email (the retry sends it) or an email whose
+  response the retry replays. Never a duplicate send.
 
 `PATCH` and `DELETE` are naturally idempotent and need no header.
 
 ## Rate limits
 
-600 requests per minute per organization, as a sliding window.
+600 requests per minute per organization, sliding window.
 
 | Header | On |
 | --- | --- |
@@ -120,20 +113,20 @@ imports and on sends.
 | `RateLimit-Reset` | Every response |
 | `Retry-After` | `429` only, in seconds |
 
-On `429 rate_limit_exceeded`, sleep for `Retry-After` seconds and retry. Do not
-back off blindly.
+On `429 rate_limit_exceeded`, sleep `Retry-After` seconds and retry. Don't back
+off blindly.
 
-Transactional sending has its own bucket inside that limit, 120 per minute per
-organization by default, so a burst of password resets cannot starve the rest of
+Transactional sends have their own bucket inside that limit: 120 per minute per
+organization by default, so a burst of password resets can't starve the rest of
 the API.
 
-**A batch call counts as one request.** That is the entire point of it:
-importing 50,000 contacts is 50 requests, not 50,000. Never loop single creates
-for an import. See [Contacts](/contacts).
+**A batch call counts as one request.** Importing 50,000 contacts is 50
+requests, not 50,000. Never loop single creates for an import. See
+[Contacts](/contacts).
 
 ## Plan limits
 
-The API enforces exactly the same rules as the app.
+The API enforces the same rules as the app.
 
 | Situation | Response |
 | --- | --- |
@@ -143,6 +136,6 @@ The API enforces exactly the same rules as the app.
 | Sending disabled on the account | `403 sending_disabled` |
 
 A batch that would cross the subscriber cap is rejected **whole**, never
-partially applied, with the remaining headroom in the message. So the import can
-simply be re-run after upgrading. Do not retry it, and do not split the batch to
-sneak under the cap.
+partially applied, and the message states the remaining headroom. Re-run the
+import after upgrading. Don't retry it, and don't split the batch to sneak under
+the cap.

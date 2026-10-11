@@ -8,21 +8,19 @@ import { Callout } from "nextra/components";
 
 # Managing endpoints
 
-Webhook endpoints can be provisioned over the API, for deploy scripts and
-infrastructure-as-code. For the receiver side, see [Webhooks](/webhooks).
+Provision webhook endpoints from deploy scripts and infrastructure-as-code. For
+the receiver side, see [Webhooks](/webhooks).
 
 <Callout type="warning">
-Every route on this page, **reads included**, requires a key with the
-`webhooks:manage` scope. It is off by default and cannot be added to an existing
-key. Without it you get `403 insufficient_scope`, and the fix is a new key.
+Every route here, **reads included**, needs the `webhooks:manage`
+[scope](/authentication#scopes). Without it: `403 insufficient_scope`. Mint a
+new key; scopes cannot be added to an existing one.
 </Callout>
 
-Why reads are gated too: an endpoint is a standing feed of every address you
-mail, pushed to a URL of the caller's choosing. That makes endpoint creation the
-one write in v1 that is an exfiltration primitive rather than a content edit. A
-key with the base grant can read contacts, but it has to keep asking; a key that
-can add an endpoint gets them pushed to it forever, silently. The delivery log
-names the recipient of every event, so it is gated on the same reasoning.
+An endpoint is a standing feed of every address you mail, pushed to a URL the
+caller chooses. A base key can read contacts but has to keep asking; a key that
+adds an endpoint gets them pushed forever, silently. The delivery log names
+every recipient, so reads are gated too.
 
 ## The Webhook endpoint object
 
@@ -42,11 +40,10 @@ names the recipient of every event, so it is gated on the same reasoning.
 }
 ```
 
-`consecutive_failures`, `last_error` and `last_failure_at` are how you monitor an
-endpoint's health. Endpoints are never auto-disabled, so these fields are the
-signal.
+Endpoints are never auto-disabled. Monitor `consecutive_failures`,
+`last_failure_at` and `last_error` instead.
 
-The signing secret is deliberately absent. See [below](#the-signing-secret).
+The signing secret is not here. See [below](#the-signing-secret).
 
 ## List endpoints
 
@@ -59,7 +56,7 @@ The signing secret is deliberately absent. See [below](#the-signing-secret).
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `url` | string | Yes | Public `https`, port 443 or 8443. |
-| `events` | string[] | Yes | Which [events](/webhooks) to send. |
+| `events` | string[] | Yes | Which [events](/webhooks#events) to send. |
 | `description` | string | No | For your own bookkeeping. |
 
 ```bash
@@ -74,8 +71,8 @@ curl -X POST https://go.day3.app/api/v1/webhooks \
 ```
 
 <Callout type="error">
-The response to this `POST` is the **only** time the signing secret is ever
-returned. Capture it now.
+This response is the **only** time the API returns the signing secret. Capture
+it now.
 </Callout>
 
 ```json
@@ -97,8 +94,8 @@ returned. Capture it now.
 
 <Endpoint method="PATCH" path="/v1/webhooks/{webhook_id}" scope="webhooks:manage" />
 
-`url`, `description`, `events` and `status`. Changing `events` replaces the list
-rather than adding to it.
+Accepts `url`, `description`, `events` and `status`. `events` replaces the list;
+it does not append.
 
 ## Delete an endpoint
 
@@ -110,7 +107,8 @@ Removes the endpoint **and its delivery history**.
 
 <Endpoint method="GET" path="/v1/webhooks/{webhook_id}/deliveries" scope="webhooks:manage" />
 
-Cursor-paginated, newest first. Filter with `?status=`.
+Newest first, cursor-paginated. Filter with `?status=`. Rows are kept for 30
+days.
 
 ```json
 {
@@ -130,21 +128,14 @@ Cursor-paginated, newest first. Filter with `?status=`.
 }
 ```
 
-Rows are kept for 30 days.
-
-Note that the **signed payload is not here.** Over the API it would be a
-paginated way to read back every event body, and therefore every address you
-mail. The app's delivery log view shows it.
+The **signed payload is not included**. Over the API it would be a paginated
+dump of every address you mail. The app's delivery log shows it.
 
 ## The signing secret
 
-Two things stay out of the API on purpose:
+Returned once, by `POST`, and never again at any scope. Reveal and rotate live
+in the app behind a session, because a key that could read the secret could
+forge our events into your receiver.
 
-- **The signing secret** is returned once by `POST` and has no other
-  representation at any scope. Reveal and rotate live in the app UI behind a
-  session, because a key that could read the secret could forge our events into
-  your own receiver.
-- **The signed payload**, as above.
-
-If you lost the secret, rotate it in the app under **API keys**, then
-**Webhooks**. See [rotating the secret](/webhooks) for the zero-downtime order.
+Lost it? Rotate in the app under **API keys**, then **Webhooks**, following the
+[zero-downtime order](/webhooks#rotate-the-secret).

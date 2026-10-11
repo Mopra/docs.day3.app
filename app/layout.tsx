@@ -1,7 +1,7 @@
 import { Footer, Layout, Navbar } from "nextra-theme-docs";
 import { Head } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
-import { Geist, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "nextra-theme-docs/style.css";
 import "./globals.css";
 import type { Metadata } from "next";
@@ -11,6 +11,12 @@ import type { Metadata } from "next";
 const geist = Geist({
   subsets: ["latin"],
   variable: "--font-geist",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -40,17 +46,20 @@ export const metadata: Metadata = {
   },
 };
 
-// The brand mark is three rounded squares reading "day 3". The two leading
-// squares take `currentColor` so the mark inverts with the theme on its own;
-// only the caramel third square is fixed, which is the whole point of it.
+// The brand mark is three rounded squares reading "day 3", drawn exactly as the
+// site's header draws it: two espresso squares that invert with the theme, and
+// the caramel third square that never does.
 const logo = (
   <span className="flex items-center gap-2.5">
-    <svg viewBox="0 0 356 100" aria-hidden="true" className="h-3 w-auto shrink-0">
-      <rect width="100" height="100" rx="14" fill="currentColor" />
-      <rect x="128" width="100" height="100" rx="14" fill="currentColor" />
-      <rect x="256" width="100" height="100" rx="14" fill="#c28a4d" />
+    <svg viewBox="0 0 356 100" aria-hidden="true" className="h-[15px] w-auto shrink-0">
+      <rect width="100" height="100" rx="18" fill="currentColor" />
+      <rect x="128" width="100" height="100" rx="18" fill="currentColor" />
+      <rect x="256" width="100" height="100" rx="18" fill="#c28a4d" />
     </svg>
-    <span className="text-[1.05rem] font-semibold tracking-tight">day3 docs</span>
+    <span className="text-[1.15rem] leading-none tracking-tight">day3</span>
+    <span className="rounded-md border border-[var(--border)] px-1.5 py-0.5 text-[0.7rem] leading-none font-medium tracking-wide text-[var(--muted-foreground)]">
+      docs
+    </span>
   </span>
 );
 
@@ -60,7 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="en"
       dir="ltr"
       suppressHydrationWarning
-      className={`${geist.variable} ${instrumentSerif.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`}
     >
       {/*
         Nextra derives its whole primary/accent scale from one HSL triple and
@@ -80,37 +89,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Layout
           navbar={
-            <Navbar logo={logo} projectLink="https://github.com/Mopra/docs.day3.app">
-              <a href="https://day3.app" target="_blank" rel="noopener noreferrer">
-                Website
+            <Navbar logo={logo} logoLink="/" projectLink="https://github.com/Mopra/docs.day3.app">
+              <a href="https://day3.app" target="_blank" rel="noopener noreferrer" className="d3-navlink max-md:hidden">
+                day3.app
               </a>
-              <a href="https://go.day3.app" target="_blank" rel="noopener noreferrer">
-                Dashboard
+              <a
+                href="https://go.day3.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[0.8rem] font-medium !text-[var(--background)] transition-opacity hover:opacity-85 max-md:hidden"
+              >
+                Open the app
               </a>
             </Navbar>
           }
           pageMap={await getPageMap()}
           docsRepositoryBase="https://github.com/Mopra/docs.day3.app/tree/main"
-
-
+          editLink="Edit this page on GitHub"
+          feedback={{ content: null }}
+          nextThemes={{ defaultTheme: "light" }}
+          sidebar={{ defaultMenuCollapseLevel: 2, toggleButton: true }}
+          toc={{ backToTop: "Back to top", title: "On this page" }}
           footer={
-            <Footer>
-              <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                <p>
-                  &copy; {new Date().getFullYear()} day3. Marketing + transactional email, billed by
-                  sends.
-                </p>
-                <div className="flex gap-4">
-                  <a href="https://day3.app" target="_blank" rel="noopener noreferrer">
-                    day3.app
-                  </a>
-                  <a href="https://day3.app/pricing" target="_blank" rel="noopener noreferrer">
-                    Pricing
-                  </a>
-                  <a href="https://day3.app/security" target="_blank" rel="noopener noreferrer">
-                    Security
-                  </a>
-                </div>
+            <Footer className="!py-8">
+              <div className="flex w-full flex-wrap items-center justify-between gap-4 text-sm text-[var(--muted-foreground)]">
+                <p>&copy; {new Date().getFullYear()} day3. Email billed by what you send.</p>
+                <nav className="flex gap-5">
+                  <a href="https://day3.app" className="hover:text-[var(--foreground)]">day3.app</a>
+                  <a href="https://day3.app/pricing" className="hover:text-[var(--foreground)]">Pricing</a>
+                  <a href="https://day3.app/security" className="hover:text-[var(--foreground)]">Security</a>
+                  <a href="/llms.txt" className="hover:text-[var(--foreground)]">llms.txt</a>
+                </nav>
               </div>
             </Footer>
           }

@@ -8,13 +8,11 @@ import { Callout } from "nextra/components";
 
 # Topics
 
-A topic is a subscription category inside an audience. Topics let someone drop
-one kind of email without unsubscribing from everything, which keeps a list
-healthy: a reader who only wanted release notes can say so instead of leaving.
+A topic is a subscription category inside an audience. A reader who only wants
+release notes can drop the rest instead of leaving the list.
 
-Each topic has a default, so contacts are subscribed or not without needing an
-explicit choice. Explicit choices are then stored as deviations from that
-default.
+Each topic has a default. A contact's explicit choices are stored as deviations
+from it.
 
 ## The Topic object
 
@@ -33,7 +31,7 @@ default.
 | Field | Notes |
 | --- | --- |
 | `name` | Shown to subscribers on the preferences page. |
-| `description` | Optional. Shown alongside the name. |
+| `description` | Optional. Shown next to the name. |
 | `default_subscribed` | Whether a contact with no explicit choice is in. |
 
 ## List topics
@@ -43,12 +41,6 @@ default.
 ## Create a topic
 
 <Endpoint method="POST" path="/v1/audiences/{audience_id}/topics" />
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `name` | string | Yes | |
-| `description` | string | No | |
-| `default_subscribed` | boolean | No | Defaults to `true`. |
 
 ```bash
 curl -X POST https://go.day3.app/api/v1/audiences/aud_123/topics \
@@ -61,11 +53,16 @@ curl -X POST https://go.day3.app/api/v1/audiences/aud_123/topics \
       }'
 ```
 
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | Yes | |
+| `description` | string | No | |
+| `default_subscribed` | boolean | No | Defaults to `true`. |
+
 <Callout type="warning">
-Think about `default_subscribed` before creating a topic. Setting it to `true`
-opts your whole existing audience in, including people who never asked for this
-category. That is defensible for a topic that describes mail you already send,
-and not defensible for a new promotional stream.
+`default_subscribed: true` opts your whole existing audience in, including
+people who never asked for this category. Fine for mail you already send. Not
+fine for a new promotional stream.
 </Callout>
 
 ## Retrieve a topic
@@ -76,17 +73,15 @@ and not defensible for a new promotional stream.
 
 <Endpoint method="PATCH" path="/v1/audiences/{audience_id}/topics/{topic_id}" />
 
-`name`, `description` and `default_subscribed`.
-
-Changing `default_subscribed` affects only contacts with no explicit choice.
-Anyone who has actively opted in or out keeps their choice.
+`name`, `description` and `default_subscribed`. Changing the default only
+affects contacts with no explicit choice.
 
 ## Delete a topic
 
 <Endpoint method="DELETE" path="/v1/audiences/{audience_id}/topics/{topic_id}" />
 
-Removes the topic and every per-contact subscription attached to it. Contacts
-themselves are untouched.
+Removes the topic and every per-contact subscription to it. Contacts are
+untouched.
 
 ```json
 { "id": "top_789k4m2v0dz1", "deleted": true }
@@ -94,21 +89,17 @@ themselves are untouched.
 
 ## Per-contact subscriptions
 
-The read and write endpoints for one contact's topics live on the contact:
+These live on the contact:
 
 - `GET /v1/audiences/{audience_id}/contacts/{id_or_email}/topics`
 - `PATCH /v1/audiences/{audience_id}/contacts/{id_or_email}/topics`
 
-The `GET` returns **effective** state, with explicit rows overlaid on defaults,
-and an `is_default` flag telling you which is which. The `PATCH` takes a partial
-map, so topics you leave out are untouched:
+`GET` returns the **effective** state, with an `is_default` flag per topic.
+`PATCH` takes a partial map; topics you leave out are untouched:
 
 ```json
 { "topics": { "top_789": false, "top_790": true } }
 ```
 
-Full detail on [Contacts](/contacts).
-
-You can also set topics per row inside a [batch
-import](/contacts), using the same map shape on each item, which
-is how a Mailchimp group or interest migration carries across in one pass.
+Batch imports take the same map per item, so Mailchimp groups and interests
+carry across in one pass. See [Contacts](/contacts#contact-topics).

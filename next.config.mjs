@@ -1,6 +1,13 @@
 import nextra from "nextra";
+import espresso from "./lib/espresso-theme.mjs";
 
-const withNextra = nextra({});
+const withNextra = nextra({
+  // One espresso theme for both page themes, so code reads the same on cream
+  // and on the dark canvas, the way the marketing site shows it.
+  mdxOptions: {
+    rehypePrettyCodeOptions: { theme: espresso },
+  },
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

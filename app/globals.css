@@ -5,9 +5,8 @@
 /* =============================================================================
    BRAND TOKENS
    Mirrored from the marketing site (day3.app.website/app/globals.css) so the
-   docs, the app and the site read as one product. Only the subset the docs
-   actually paints is carried over: no chart, tier or motion tokens live here.
-   If a value changes in the site's token block, change it here too.
+   docs, the app and the site read as one product. If a value changes in the
+   site's token block, change it here too.
 
    Palette: cream + espresso + caramel.
    ============================================================================= */
@@ -16,6 +15,8 @@
   --espresso: #241c17;
   --oat: #e8dccb;
   --caramel: #b98145;
+  --clay: #a35f45;
+  --olive: #6f7654;
 
   --background: #f7f1e8;
   --foreground: #241c17;
@@ -23,39 +24,61 @@
   --muted: #efe6d6;
   --muted-foreground: #5e5346;
   --border: #e3d7c3;
+  --code-bg: #241c17;
 
-  /* Docs-only. The site spends caramel as a *fill* with white on top, so it
-     never has to survive as text. Nextra runs the primary as link and
-     active-nav colour directly on the canvas, where native caramel (#b98145)
-     lands at 2.97:1 on cream and fails. Darkened to hsl(31 46% 38%) = 4.76:1.
-     The same triple is handed to Nextra's <Head color> in app/layout.tsx.
-     Change both together. */
+  /* Docs-only. Nextra spends its primary on link and active-nav *text*, where
+     native caramel (#b98145) only reaches 2.97:1 on cream. hsl(31 46% 38%) is
+     4.76:1. The same triple is handed to Nextra's <Head color> in
+     app/layout.tsx. Change both together. */
   --link: hsl(31 46% 38%);
 
-  /* HTTP-method badges. Reads are calm, writes escalate, DELETE is the clay
-     the site already uses for destructive. */
-  --method-get: #4a5a3f;
-  --method-post: #6f5a2e;
+  /* HTTP-method badges. Reads are calm, writes escalate, DELETE is clay. */
+  --method-get: #56663f;
+  --method-post: #8a5f24;
   --method-patch: #7a5230;
   --method-delete: #a35f45;
+
+  /* Nextra paints its chrome from Tailwind's cool grays. Re-pointing the two
+     scales it uses at warm oat-to-espresso steps turns every border, muted
+     label and hover surface into the brand without overriding components one
+     by one. */
+  --x-color-gray-50: #fbf7f0;
+  --x-color-gray-100: #f1e9dc;
+  --x-color-gray-200: #e8dccb;
+  --x-color-gray-300: #ddd0ba;
+  --x-color-gray-400: #a99a84;
+  --x-color-gray-500: #857663;
+  --x-color-gray-600: #5e5346;
+  --x-color-gray-700: #4a3f35;
+  --x-color-gray-800: #2c2219;
+  --x-color-gray-900: #241c17;
+  --x-color-neutral-50: #fbf7f0;
+  --x-color-neutral-200: #e8dccb;
+  --x-color-neutral-300: #d6c8b2;
+  --x-color-neutral-400: #b3a795;
+  --x-color-neutral-500: #8a7d6b;
+  --x-color-neutral-600: #5e5346;
+  --x-color-neutral-700: #3d2f23;
+  --x-color-neutral-800: #2c2219;
+  --x-color-neutral-900: #221a14;
 }
 
 .dark {
   --background: #1a1410;
   --foreground: #f2e9da;
-  --card: #221a14;
+  --card: #211913;
   --muted: #2c2219;
   --muted-foreground: #b3a795;
   --border: #33281f;
+  --code-bg: #120e0b;
 
-  /* On the dark canvas caramel is bright enough to lead, matching the site's
-     dark --primary (#c98f53). hsl(31 46% 56%) = 6.5:1 on #1a1410. */
+  /* hsl(31 46% 56%) = 6.5:1 on #1a1410. */
   --link: hsl(31 46% 56%);
 
-  --method-get: #a8bd96;
-  --method-post: #d6bc82;
+  --method-get: #b3c79f;
+  --method-post: #e0c287;
   --method-patch: #dba874;
-  --method-delete: #d99a82;
+  --method-delete: #e0a08a;
 }
 
 @theme inline {
@@ -66,28 +89,356 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-link: var(--link);
+  --color-caramel: var(--caramel);
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-display: var(--font-instrument-serif), Georgia, serif;
 }
 
-/* Nextra paints its own surfaces from the <Head> props; these are the few
-   places the theme reads a variable we own rather than one it generates. */
+/* =============================================================================
+   BASE
+   ============================================================================= */
 body {
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
 }
 
-/* The h1 on every page is the one place the site's display serif appears, so a
+code,
+kbd,
+pre {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--caramel) 30%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--caramel);
+  outline-offset: 2px;
+}
+
+/* =============================================================================
+   NAVBAR
+   ============================================================================= */
+.nextra-navbar-blur {
+  background-color: color-mix(in srgb, var(--background) 82%, transparent) !important;
+  box-shadow: none !important;
+  border-color: var(--border) !important;
+}
+
+.nextra-navbar nav > a:first-child {
+  color: var(--foreground);
+}
+
+.d3-navlink {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  transition: color 150ms;
+}
+.d3-navlink:hover {
+  color: var(--foreground);
+}
+
+.nextra-search input {
+  background-color: var(--card) !important;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+.nextra-search input:focus {
+  border-color: color-mix(in srgb, var(--caramel) 60%, var(--border));
+}
+.nextra-search kbd {
+  background: var(--muted) !important;
+  border-color: var(--border) !important;
+}
+
+/* =============================================================================
+   SIDEBAR + TOC
+   ============================================================================= */
+.nextra-sidebar a,
+.nextra-mobile-nav a,
+.nextra-sidebar button,
+.nextra-mobile-nav button {
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+}
+
+/* Section separators read as the site's caramel eyebrows. */
+.nextra-sidebar li:not(:has(a, button)),
+.nextra-mobile-nav li:not(:has(a, button)) {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--link);
+}
+
+.nextra-toc p {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.nextra-toc a {
+  font-size: 0.8125rem;
+}
+
+/* =============================================================================
+   ARTICLE TYPOGRAPHY
+   ============================================================================= */
+article main {
+  font-size: 0.975rem;
+  line-height: 1.75;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--background));
+}
+
+/* The page title is the one place the site's display serif appears, so a
    reader arriving from day3.app recognises the typography immediately. */
-.nextra-content h1 {
+article main h1 {
   font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: -0.01em;
+  font-size: clamp(2.4rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin-bottom: 0.9rem;
 }
 
-/* Wide reference tables are the norm here (field / type / required /
-   description). Let them scroll inside their own box instead of stretching the
-   prose column. */
-.nextra-content table {
-  display: table;
+/* The paragraph straight after the title is the page's lede. */
+article main h1 + p {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+article main h2 {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  border-bottom: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 3.25rem !important;
+}
+
+article main h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 2.25rem !important;
+}
+
+article main h2 code,
+article main h3 code {
+  font-size: 0.9em;
+}
+
+article main a:not(.not-prose a, .subheading-anchor) {
+  color: var(--link);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--link) 35%, transparent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 150ms;
+}
+article main a:not(.not-prose a, .subheading-anchor):hover {
+  text-decoration-color: currentColor;
+}
+
+article main strong {
+  font-weight: 600;
+}
+
+article main li::marker {
+  color: var(--x-color-gray-400);
+}
+
+/* Inline code: an oat chip, no border. */
+article main :not(pre) > code:not(.not-prose code) {
+  font-size: 0.85em;
+  padding: 0.15em 0.4em;
+  border-radius: 0.35rem;
+  border: 0 !important;
+  background-color: var(--muted) !important;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+article main a :not(pre) > code,
+article main a > code {
+  color: inherit;
+}
+
+.nextra-breadcrumb {
+  font-size: 0.8rem;
+}
+.nextra-breadcrumb span:last-child {
+  color: var(--link);
+  font-weight: 500;
+}
+
+/* =============================================================================
+   CODE BLOCKS
+   Espresso in both themes, matching the API cards on day3.app.
+   ============================================================================= */
+article main div.nextra-code {
+  margin-top: 1.25rem;
+}
+article main div.nextra-code > pre {
+  background-color: var(--code-bg) !important;
+  color: #ede3d3;
+  border-radius: 0.8rem !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  border: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+.dark article main div.nextra-code > pre {
+  border-color: var(--border);
+}
+article main div.nextra-code > pre {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, #ede3d3 22%, transparent) transparent;
+}
+/* Filename strip, when a block has one. */
+article main div.nextra-code > div:first-child:not(:only-child) {
+  background-color: var(--code-bg) !important;
+  color: #b3a795 !important;
+  border-color: color-mix(in srgb, #ede3d3 10%, transparent) !important;
+}
+article main div.nextra-code > div:first-child:not(:only-child) + pre {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+/* Copy button sits on espresso, not cream. */
+article main div.nextra-code button {
+  background-color: color-mix(in srgb, #ede3d3 8%, transparent) !important;
+  border-color: color-mix(in srgb, #ede3d3 14%, transparent) !important;
+  color: #ede3d3 !important;
+  border-radius: 0.45rem;
+}
+
+/* =============================================================================
+   TABLES
+   ============================================================================= */
+.d3-table {
+  margin-top: 1.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--card);
+}
+.d3-table table {
   width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.d3-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.d3-table td {
+  padding: 0.7rem 1rem;
+  vertical-align: top;
+  border-top: 1px solid var(--border);
+}
+.d3-table tr:first-child td {
+  border-top: 0;
+}
+/* The first column is almost always a field, code or status: keep it on one
+   line so the description column does the wrapping. */
+.d3-table td:first-child {
+  white-space: nowrap;
+}
+.d3-table td :not(pre) > code {
+  background-color: color-mix(in srgb, var(--muted) 80%, transparent) !important;
+}
+
+/* =============================================================================
+   CALLOUTS
+   One quiet shape, tinted by kind. Nextra's stock blue/yellow/red would be the
+   only cool colours on the page.
+   ============================================================================= */
+.nextra-callout {
+  border-radius: 0.8rem !important;
+  border-width: 1px !important;
+  border-style: solid;
+  padding: 0.85rem 1rem 0.85rem 0.6rem !important;
+  font-size: 0.925rem;
+  line-height: 1.65;
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+}
+.nextra-callout svg {
+  color: var(--link);
+}
+.nextra-callout[class*="bg-blue"] {
+  background: color-mix(in srgb, var(--caramel) 7%, var(--card)) !important;
+  border-color: color-mix(in srgb, var(--caramel) 30%, var(--border)) !important;
+}
+.nextra-callout[class*="bg-yellow"],
+.nextra-callout[class*="bg-purple"] {
+  background: color-mix(in srgb, #d49a3a 10%, var(--card)) !important;
+  border-color: color-mix(in srgb, #d49a3a 40%, var(--border)) !important;
+}
+.nextra-callout[class*="bg-yellow"] svg,
+.nextra-callout[class*="bg-purple"] svg {
+  color: #b07a1f;
+}
+.nextra-callout[class*="bg-red"] {
+  background: color-mix(in srgb, var(--clay) 9%, var(--card)) !important;
+  border-color: color-mix(in srgb, var(--clay) 40%, var(--border)) !important;
+}
+.nextra-callout[class*="bg-red"] svg {
+  color: var(--clay);
+}
+.nextra-callout[class*="bg-green"] {
+  background: color-mix(in srgb, var(--olive) 9%, var(--card)) !important;
+  border-color: color-mix(in srgb, var(--olive) 35%, var(--border)) !important;
+}
+.nextra-callout[class*="bg-green"] svg {
+  color: var(--olive);
+}
+.nextra-callout p {
+  margin-top: 0 !important;
+}
+
+/* =============================================================================
+   STEPS
+   ============================================================================= */
+.nextra-steps {
+  border-color: var(--border) !important;
+}
+.nextra-steps h3::before {
+  background-color: var(--muted) !important;
+  border-color: var(--background) !important;
+  color: var(--link) !important;
+  font-family: var(--font-mono);
+  font-size: 0.85rem !important;
+}
+
+/* =============================================================================
+   PAGE FOOTER (prev / next)
+   ============================================================================= */
+article > div:last-child a[title] {
+  font-size: 0.95rem;
+}
+
+/* Headings in espresso, not Nextra's slate. */
+article main :is(h1, h2, h3, h4) {
+  color: var(--foreground);
 }

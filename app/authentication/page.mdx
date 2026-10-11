@@ -1,6 +1,6 @@
 ---
 title: Authentication
-description: API keys, key format, scopes, and how sandbox mode works on free plans.
+description: API keys, scopes, and sandbox mode on free plans.
 ---
 
 # Authentication
@@ -11,18 +11,17 @@ Every request carries an API key as a bearer token:
 Authorization: Bearer day3_live_x7Kj9mP2...
 ```
 
-There is no other authentication mode. The app's own session cookies work only
-on its private routes, never on `/api/v1`.
+That is the only auth mode. The app's session cookies work on its private
+routes, never on `/api/v1`.
 
 ## Keys
 
-Keys are created and revoked in the app on the **API keys** page, and you have
-to be an admin of the organization. There are deliberately no key-management
-endpoints in the API itself: a key must not be able to mint another key.
+Admins create and revoke keys in the app under **API keys**. The API has no
+key-management endpoints: a key must not be able to mint another key.
 
-A key belongs to exactly one organization. The account is always resolved from
-the key on the server, never from anything in the request, so a key cannot reach
-another organization's data even by id.
+A key belongs to one organization. The server resolves the account from the key,
+never from the request, so a key can't reach another organization's data even by
+id.
 
 ### Format
 
@@ -30,18 +29,16 @@ another organization's data even by id.
 day3_<env>_<40 characters>
 ```
 
-`env` is `live` or `test`. The prefix makes keys recognisable to secret
-scanners.
+`env` is `live` or `test`. The prefix lets secret scanners recognise keys.
 
-Only a SHA-256 hash is stored, so a database leak never leaks a usable
-credential, and a lost key cannot be recovered. Revoke it and mint another. The
-app shows the first eight characters after the prefix so you can tell keys apart
-in the list.
+Only a SHA-256 hash is stored. A database leak never leaks a usable key, and a
+lost key can't be recovered: revoke it and mint another. The app shows the first
+eight characters after the prefix so you can tell keys apart.
 
-`day3_test_...` is reserved in the format but not implemented. Using one returns
-`403 test_keys_not_supported` rather than silently hitting live data. For
-test-like behaviour, use a free organization and [sandbox
-mode](#sandbox-mode-on-free-plans).
+`day3_test_...` is reserved but not implemented. It returns
+`403 test_keys_not_supported` instead of silently hitting live data. For
+test-like behaviour, use a free organization in
+[sandbox mode](#sandbox-mode-on-free-plans).
 
 ### Errors
 
@@ -53,12 +50,11 @@ mode](#sandbox-mode-on-free-plans).
 
 ## Scopes
 
-The base grant is deliberately wide. A key with no scopes at all can read and
-write content: audiences, contacts, fields, segments, topics, campaign drafts,
-and transactional sends.
+A key with no scopes can read and write all content: audiences, contacts,
+fields, segments, topics, campaign drafts, and transactional sends.
 
-Three actions sit outside that, because their blast radius reaches beyond the
-account and cannot be undone:
+Three actions reach beyond the account and can't be undone, so they need a
+scope:
 
 | Scope | Unlocks |
 | --- | --- |
@@ -66,63 +62,48 @@ account and cannot be undone:
 | `automations:enroll` | `POST /automations/{id}/enroll`. |
 | `webhooks:manage` | Every `/webhooks` route, reads included. |
 
-All three are off by default and chosen at key creation. **A scope cannot be
-added to an existing key.** You mint a new one, which keeps the grant visible in
-the key list instead of buried in an edit history.
-
-Missing scope returns `403 insufficient_scope`. Do not work around it: the fix
-is a new key.
+All three are off by default and chosen when the key is created. **You can't add
+a scope to an existing key.** Mint a new one, so the grant stays visible in the
+key list. A missing scope is `403 insufficient_scope`; the fix is a new key.
 
 Why these three:
 
-- **Sending to an audience** matters more for an AI agent than for a script. A
-  script does what its author wrote; an agent holding the same key decides for
-  itself, and "email everyone on the list" is not a decision to hand over by
-  default. Test sends are deliberately *not* scoped, because they only reach
-  addresses the caller names and they are the whole point of letting an agent
-  iterate on an email.
-- **Enrolling someone in an automation** is the same decision spread over
-  time. One call promises that person every email in the flow, on the flow's own
-  schedule, with no further call from the key holder. Listing automations is
-  unscoped, because it names flows, not people. See
-  [Automations](/automations).
-- **A webhook endpoint** is a standing feed of every address you mail, pushed to
-  a URL of the caller's choosing. That makes endpoint creation the one write in
-  the API that is an exfiltration primitive rather than a content edit. Reads
-  are gated for the same reason: the delivery log names the recipient of every
-  event.
+- **Sending to an audience.** A script does what its author wrote; an agent with
+  the same key decides for itself. "Email everyone on the list" is not a
+  decision to hand over by default. Test sends are *not* scoped: they only reach
+  addresses the caller names, and they are how an agent iterates on an email.
+- **Enrolling into an automation.** The same decision spread over time: one call
+  commits that person to every email in the flow. Listing automations is
+  unscoped, since it names flows, not people. See [Automations](/automations).
+- **Webhook endpoints.** A standing feed of every address you mail, pushed to a
+  URL the caller picks. Creating one is the API's only write that can exfiltrate
+  data. Reads are gated too, because the delivery log names every recipient.
 
 ## Sandbox mode on free plans
 
-A free organization has full API access, with two limits on sending:
+Free organizations get full API access with two sending limits:
 
-- Recipients must be members of your own organization. Anyone else is
+- Recipients must be members of your organization. Anyone else is
   `403 sandbox_recipient_not_allowed`.
-- The allowance is **100 emails a month**. Exhausting it is
-  `403 plan_limit_reached`.
+- **100 emails a month.** Past that is `403 plan_limit_reached`.
 
-Sends that go out this way are real email, and responses carry
-`"sandbox": true`. That one allowance covers every surface, so campaign sends,
-test sends and API sends all draw from the same monthly pool. There is exactly
-one meter in the product, and it counts emails.
+Sandbox sends are real email, and responses carry `"sandbox": true`. Campaign,
+test and API sends all draw from that one monthly pool. The product has exactly
+one meter, and it counts emails.
 
-Upgrading lifts both restrictions with no code change. An integration written
-against sandbox mode is already the production integration.
+Upgrading lifts both limits with no code change. You don't need your own domain
+to try it: every new organization gets a
+[day3 test address](/emails#the-day3-test-address) that sends to your team.
 
-You do not need your own verified domain to try this: a new organization is
-given a [day3 test address](/emails#the-day3-test-address) that sends to your
-own team out of the box.
-
-Free plans also cap the list at 500 subscribers. Contact writes that would cross
-that return `403 plan_limit_reached`, and a batch is rejected whole rather than
+Free plans also cap the list at 500 subscribers. A contact write that would
+cross it returns `403 plan_limit_reached`, and a batch is rejected whole, never
 partially applied.
 
 ## Keeping a key safe
 
-- Read it from an environment variable. Do not hard-code it and do not commit
-  it.
-- Do not paste it into a prompt or a third-party chat tool. When you want an AI
-  assistant to use the API, tell it to read `DAY3_API_KEY` from the environment.
-- Mint separate keys per environment so you can revoke one without an outage.
-- Revoking is immediate. Rotation is: mint the new key, deploy it, revoke the
-  old one.
+- Read it from an environment variable. Never hard-code or commit it.
+- Never paste it into a prompt or chat tool. Tell your AI assistant to read
+  `DAY3_API_KEY` from the environment.
+- Use one key per environment, so revoking one causes no outage.
+- Revoking is immediate. To rotate: mint the new key, deploy it, revoke the old
+  one.
