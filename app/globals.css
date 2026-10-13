@@ -166,22 +166,22 @@ pre {
   border-radius: 0.5rem;
 }
 
-/* Section separators read as the site's caramel eyebrows. */
+/* Section separators: plain sentence-case headings, like the site's nav. */
 .nextra-sidebar li:not(:has(a, button)),
 .nextra-mobile-nav li:not(:has(a, button)) {
-  font-size: 0.7rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--link);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--foreground);
 }
 
 .nextra-toc p {
-  font-size: 0.7rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--foreground);
 }
 .nextra-toc a {
   font-size: 0.8125rem;
@@ -288,7 +288,7 @@ article main div.nextra-code {
 article main div.nextra-code > pre {
   background-color: var(--code-bg) !important;
   color: #ede3d3;
-  border-radius: 0.8rem !important;
+  border-radius: 0.5rem !important;
   box-shadow: none !important;
   --tw-ring-color: transparent !important;
   border: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
@@ -324,13 +324,11 @@ article main div.nextra-code button {
 
 /* =============================================================================
    TABLES
+   Plain ruled rows. No box, no zebra, no shouting headers.
    ============================================================================= */
 .d3-table {
   margin-top: 1.25rem;
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  background: var(--card);
 }
 .d3-table table {
   width: 100%;
@@ -340,78 +338,54 @@ article main div.nextra-code button {
 }
 .d3-table th {
   text-align: left;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  background: color-mix(in srgb, var(--muted) 55%, transparent);
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  padding: 0 1rem 0.55rem 0;
+  border-bottom: 1px solid var(--x-color-gray-300);
   white-space: nowrap;
 }
 .d3-table td {
-  padding: 0.7rem 1rem;
+  padding: 0.65rem 1rem 0.65rem 0;
   vertical-align: top;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
-.d3-table tr:first-child td {
-  border-top: 0;
+.d3-table th:last-child,
+.d3-table td:last-child {
+  padding-right: 0;
 }
 /* The first column is almost always a field, code or status: keep it on one
    line so the description column does the wrapping. */
 .d3-table td:first-child {
   white-space: nowrap;
 }
-.d3-table td :not(pre) > code {
-  background-color: color-mix(in srgb, var(--muted) 80%, transparent) !important;
-}
 
 /* =============================================================================
    CALLOUTS
-   One quiet shape, tinted by kind. Nextra's stock blue/yellow/red would be the
-   only cool colours on the page.
+   A rule down the left edge, tinted by kind. No filled box.
    ============================================================================= */
 .nextra-callout {
-  border-radius: 0.8rem !important;
-  border-width: 1px !important;
-  border-style: solid;
-  padding: 0.85rem 1rem 0.85rem 0.6rem !important;
+  border: 0 !important;
+  border-left: 2px solid var(--x-color-gray-300) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0.1rem 0 0.1rem 0.9rem !important;
   font-size: 0.925rem;
   line-height: 1.65;
   color: var(--foreground) !important;
-  background: var(--card) !important;
-  border-color: var(--border) !important;
 }
-.nextra-callout svg {
-  color: var(--link);
-}
-.nextra-callout[class*="bg-blue"] {
-  background: color-mix(in srgb, var(--caramel) 7%, var(--card)) !important;
-  border-color: color-mix(in srgb, var(--caramel) 30%, var(--border)) !important;
+.nextra-callout > div:first-child {
+  display: none;
 }
 .nextra-callout[class*="bg-yellow"],
 .nextra-callout[class*="bg-purple"] {
-  background: color-mix(in srgb, #d49a3a 10%, var(--card)) !important;
-  border-color: color-mix(in srgb, #d49a3a 40%, var(--border)) !important;
-}
-.nextra-callout[class*="bg-yellow"] svg,
-.nextra-callout[class*="bg-purple"] svg {
-  color: #b07a1f;
+  border-left-color: #d49a3a !important;
 }
 .nextra-callout[class*="bg-red"] {
-  background: color-mix(in srgb, var(--clay) 9%, var(--card)) !important;
-  border-color: color-mix(in srgb, var(--clay) 40%, var(--border)) !important;
-}
-.nextra-callout[class*="bg-red"] svg {
-  color: var(--clay);
+  border-left-color: var(--clay) !important;
 }
 .nextra-callout[class*="bg-green"] {
-  background: color-mix(in srgb, var(--olive) 9%, var(--card)) !important;
-  border-color: color-mix(in srgb, var(--olive) 35%, var(--border)) !important;
-}
-.nextra-callout[class*="bg-green"] svg {
-  color: var(--olive);
+  border-left-color: var(--olive) !important;
 }
 .nextra-callout p {
   margin-top: 0 !important;

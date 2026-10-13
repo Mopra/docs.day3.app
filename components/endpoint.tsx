@@ -50,7 +50,7 @@ export function Endpoint({
   children?: ReactNode;
 }) {
   return (
-    <div className="d3-endpoint not-prose my-5 rounded-xl border border-[var(--border)] bg-[var(--card)]">
+    <div className="d3-endpoint not-prose my-5 rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2 pr-2 pl-2.5">
         <span
           className={`shrink-0 rounded-md px-2 py-1 font-mono text-[0.7rem] leading-none font-semibold tracking-wider ${methodClass[method]}`}

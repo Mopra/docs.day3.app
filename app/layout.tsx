@@ -57,9 +57,7 @@ const logo = (
       <rect x="256" width="100" height="100" rx="18" fill="#c28a4d" />
     </svg>
     <span className="text-[1.15rem] leading-none tracking-tight">day3</span>
-    <span className="rounded-md border border-[var(--border)] px-1.5 py-0.5 text-[0.7rem] leading-none font-medium tracking-wide text-[var(--muted-foreground)]">
-      docs
-    </span>
+    <span className="text-[1.15rem] leading-none tracking-tight text-[var(--muted-foreground)]">docs</span>
   </span>
 );
 
@@ -113,7 +111,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           footer={
             <Footer className="!py-8">
               <div className="flex w-full flex-wrap items-center justify-between gap-4 text-sm text-[var(--muted-foreground)]">
-                <p>&copy; {new Date().getFullYear()} day3. Email billed by what you send.</p>
+                <p>&copy; {new Date().getFullYear()} day3</p>
                 <nav className="flex gap-5">
                   <a href="https://day3.app" className="hover:text-[var(--foreground)]">day3.app</a>
                   <a href="https://day3.app/pricing" className="hover:text-[var(--foreground)]">Pricing</a>

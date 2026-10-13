@@ -3,9 +3,17 @@ title: day3 API
 description: Send transactional email, manage audiences and contacts, and drive campaigns from code or from an AI editor.
 ---
 
-import { Hero, Cards } from "@/components/home";
+# day3 API
 
-<Hero />
+The day3 API sends transactional email, keeps your users in sync with your
+audiences, and runs campaigns and automations. It takes and returns JSON over
+HTTPS, and every request authenticates with one API key.
+
+All endpoints live under one base URL:
+
+```
+https://go.day3.app/api/v1
+```
 
 ## Your first request
 
@@ -20,7 +28,15 @@ steps.
 
 ## Start here
 
-<Cards />
+- [Send transactional email](/emails). Password resets, receipts and magic
+  links, with a request shape that matches Resend's.
+- [Sync your users](/contacts). Upsert contacts by email, up to 1,000 per call.
+- [Migrate a list](/guides/migrate-a-list) from Resend, Mailchimp or Kit
+  without mailing anyone who already unsubscribed.
+- [Receive webhooks](/webhooks) for deliveries, bounces and complaints.
+- [Run campaigns](/campaigns) and enroll contacts into
+  [automations](/automations).
+- [Connect an AI editor](/mcp) such as Claude Code or Cursor over MCP.
 
 Read [Conventions](/conventions) once. Pagination, idempotency, ids and rate
 limits work the same on every endpoint and aren't repeated per page.
@@ -39,7 +55,7 @@ limits work the same on every endpoint and aren't repeated per page.
 | [Automation](/automations) | `aut_` | A published flow a contact runs through. |
 | [Suppression](/suppressions) | `sup_` | An account-wide "never email this address". |
 
-## Set up in the app, not the API
+## What lives in the app
 
 Sending domains, senders and OAuth clients live in the app at
 [go.day3.app](https://go.day3.app). Automations are built on the app's canvas
